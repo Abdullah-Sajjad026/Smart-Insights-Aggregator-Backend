@@ -51,5 +51,10 @@ public class InquiryConfiguration : IEntityTypeConfiguration<Inquiry>
         builder.HasIndex(i => i.CreatedById);
         builder.HasIndex(i => i.Status);
         builder.HasIndex(i => i.CreatedAt);
+        builder.HasIndex(i => i.UpdatedAt);
+
+        // Composite index for active inquiry queries
+        builder.HasIndex(i => new { i.Status, i.CreatedAt })
+            .HasDatabaseName("IX_Inquiries_Status_CreatedAt");
     }
 }

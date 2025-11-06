@@ -2,7 +2,9 @@ using System.Text;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -10,6 +12,7 @@ using SmartInsights.API.Infrastructure;
 using SmartInsights.Application.Interfaces;
 using SmartInsights.Application.Services;
 using SmartInsights.Infrastructure.Data;
+using SmartInsights.Infrastructure.Health;
 using SmartInsights.Infrastructure.Repositories;
 using SmartInsights.Infrastructure.Services;
 
@@ -118,6 +121,27 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Configure Health Checks
+builder.Services.AddHealthChecks()
+    .AddNpgSql(
+        builder.Configuration.GetConnectionString("DefaultConnection")!,
+        name: "database",
+        failureStatus: HealthStatus.Unhealthy,
+        tags: new[] { "db", "sql", "postgresql" })
+    .AddHangfire(
+        options =>
+        {
+            options.MinimumAvailableServers = 1;
+        },
+        name: "hangfire",
+        failureStatus: HealthStatus.Degraded,
+        tags: new[] { "hangfire", "jobs" })
+    .AddCheck<AzureOpenAIHealthCheck>(
+        "azureopenai",
+        failureStatus: HealthStatus.Degraded,
+        tags: new[] { "ai", "openai" });
+
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo 
@@ -180,6 +204,41 @@ app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Map health check endpoints
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var response = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                duration = e.Value.Duration.TotalMilliseconds,
+                tags = e.Value.Tags
+            }),
+            totalDuration = report.TotalDuration.TotalMilliseconds
+        };
+        await context.Response.WriteAsJsonAsync(response);
+    }
+});
+
+// Detailed health endpoint (for monitoring systems)
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("db") || check.Tags.Contains("hangfire")
+});
+
+// Liveness probe (simple check)
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false // No checks, just returns if app is running
+});
 
 app.MapControllers();
 

@@ -19,6 +19,8 @@
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.9" />
     <PackageReference Include="Hangfire.PostgreSql" Version="1.20.8" />
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="8.0.0" />
+    <PackageReference Include="AspNetCore.HealthChecks.Hangfire" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
