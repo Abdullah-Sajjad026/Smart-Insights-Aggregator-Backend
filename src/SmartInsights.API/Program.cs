@@ -28,10 +28,18 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Register Repository Pattern
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
-// Register Services
+// Register Core Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IPasswordService, PasswordService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IInquiryService, InquiryService>();
+builder.Services.AddScoped<IInputService, InputService>();
+builder.Services.AddScoped<ITopicService, TopicService>();
+builder.Services.AddScoped<IDepartmentService, DepartmentService>();
+builder.Services.AddScoped<IProgramService, ProgramService>();
+builder.Services.AddScoped<ISemesterService, SemesterService>();
+builder.Services.AddScoped<IThemeService, ThemeService>();
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -86,7 +94,7 @@ builder.Services.AddSwaggerGen(c =>
     { 
         Title = "Smart Insights Aggregator API", 
         Version = "v1",
-        Description = "AI-powered feedback collection and analysis platform"
+        Description = "AI-powered feedback collection and analysis platform for KFUEIT University"
     });
     
     // Add JWT authentication to Swagger
@@ -124,6 +132,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Smart Insights API v1");
+        c.RoutePrefix = string.Empty; // Serve Swagger at root
     });
 }
 
