@@ -23,6 +23,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<InquiryDepartment> InquiryDepartments => Set<InquiryDepartment>();
     public DbSet<InquiryProgram> InquiryPrograms => Set<InquiryProgram>();
     public DbSet<InquirySemester> InquirySemesters => Set<InquirySemester>();
+    public DbSet<AIUsageLog> AIUsageLogs => Set<AIUsageLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
