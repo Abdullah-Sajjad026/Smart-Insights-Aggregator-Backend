@@ -14,6 +14,7 @@ public class InputService : IInputService
     private readonly IRepository<Inquiry> _inquiryRepository;
     private readonly IRepository<Topic> _topicRepository;
     private readonly IRepository<Theme> _themeRepository;
+    private readonly IBackgroundJobService _backgroundJobService;
 
     public InputService(
         IRepository<Input> inputRepository,
@@ -21,7 +22,8 @@ public class InputService : IInputService
         IRepository<User> userRepository,
         IRepository<Inquiry> inquiryRepository,
         IRepository<Topic> topicRepository,
-        IRepository<Theme> themeRepository)
+        IRepository<Theme> themeRepository,
+        IBackgroundJobService backgroundJobService)
     {
         _inputRepository = inputRepository;
         _inputReplyRepository = inputReplyRepository;
@@ -29,6 +31,7 @@ public class InputService : IInputService
         _inquiryRepository = inquiryRepository;
         _topicRepository = topicRepository;
         _themeRepository = themeRepository;
+        _backgroundJobService = backgroundJobService;
     }
 
     public async Task<InputDto> CreateAsync(CreateInputRequest request)
@@ -70,9 +73,19 @@ public class InputService : IInputService
 
         await _inputRepository.AddAsync(input);
 
-        // TODO: Trigger background job for AI processing
+        // Trigger automatic AI processing in background
+        try
+        {
+            _backgroundJobService.EnqueueInputProcessing(input.Id);
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't fail the request
+            // The recurring job will pick it up later
+            Console.WriteLine($"Failed to enqueue AI processing: {ex.Message}");
+        }
 
-        return await GetByIdAsync(input.Id) 
+        return await GetByIdAsync(input.Id)
             ?? throw new InvalidOperationException("Failed to retrieve created input");
     }
 
