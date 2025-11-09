@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SmartInsights.Application.DTOs.Common;
+using SmartInsights.Application.DTOs.Inquiries;
 using SmartInsights.Application.Interfaces;
 using SmartInsights.Domain.Entities;
 
