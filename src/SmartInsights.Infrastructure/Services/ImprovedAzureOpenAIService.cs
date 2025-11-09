@@ -187,6 +187,12 @@ public class ImprovedAzureOpenAIService : IAIService
 
     public async Task<ExecutiveSummary> GenerateInquirySummaryAsync(Guid inquiryId, List<Input> inputs)
     {
+        // Check for empty inputs first
+        if (!inputs.Any())
+        {
+            return CreateEmptySummary();
+        }
+
         var cacheKey = $"inquiry_summary_{inquiryId}_{inputs.Count}_{inputs.Max(i => i.UpdatedAt):yyyyMMddHHmmss}";
 
         // Check cache
@@ -198,10 +204,6 @@ public class ImprovedAzureOpenAIService : IAIService
 
         try
         {
-            if (!inputs.Any())
-            {
-                return CreateEmptySummary();
-            }
 
             var prompt = BuildEnhancedInquirySummaryPrompt(inputs);
             var (response, usage) = await CallOpenAIWithRetryAsync(prompt, "inquiry_summary", maxTokens: 3000);
@@ -224,6 +226,12 @@ public class ImprovedAzureOpenAIService : IAIService
 
     public async Task<ExecutiveSummary> GenerateTopicSummaryAsync(Guid topicId, List<Input> inputs)
     {
+        // Check for empty inputs first
+        if (!inputs.Any())
+        {
+            return CreateEmptySummary();
+        }
+
         var cacheKey = $"topic_summary_{topicId}_{inputs.Count}_{inputs.Max(i => i.UpdatedAt):yyyyMMddHHmmss}";
 
         if (_cache.TryGetValue<ExecutiveSummary>(cacheKey, out var cachedSummary))
@@ -234,10 +242,6 @@ public class ImprovedAzureOpenAIService : IAIService
 
         try
         {
-            if (!inputs.Any())
-            {
-                return CreateEmptySummary();
-            }
 
             var prompt = BuildEnhancedTopicSummaryPrompt(inputs);
             var (response, usage) = await CallOpenAIWithRetryAsync(prompt, "topic_summary", maxTokens: 3000);
