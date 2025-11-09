@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using SmartInsights.Application.DTOs.Common;
 using SmartInsights.Application.DTOs.Users;
 using SmartInsights.Application.Interfaces;
