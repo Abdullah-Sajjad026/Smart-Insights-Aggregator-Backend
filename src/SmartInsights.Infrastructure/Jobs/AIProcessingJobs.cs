@@ -61,12 +61,12 @@ public class AIProcessingJobs
             // Step 2: Update input with analysis results
             input.Sentiment = analysis.Sentiment;
             input.Tone = analysis.Tone;
-            input.UrgencyScore = analysis.Urgency;
-            input.ImportanceScore = analysis.Importance;
-            input.ClarityScore = analysis.Clarity;
-            input.QualityScore = analysis.Quality;
-            input.HelpfulnessScore = analysis.Helpfulness;
-            input.SeverityLevel = analysis.Severity;
+            input.UrgencyPct = analysis.Urgency;
+            input.ImportancePct = analysis.Importance;
+            input.ClarityPct = analysis.Clarity;
+            input.QualityPct = analysis.Quality;
+            input.HelpfulnessPct = analysis.Helpfulness;
+            input.CalculateScore(); // Calculate score and severity
             input.AIProcessedAt = DateTime.UtcNow;
 
             // Step 3: Find or assign theme
@@ -205,8 +205,7 @@ public class AIProcessingJobs
             var summary = await _aiService.GenerateInquirySummaryAsync(inquiryId, inputs);
 
             // Save summary
-            inquiry.ExecutiveSummary = System.Text.Json.JsonSerializer.Serialize(summary);
-            inquiry.UpdatedAt = DateTime.UtcNow;
+            inquiry.SetSummary(summary);
 
             await _context.SaveChangesAsync(cancellationToken);
 
@@ -256,8 +255,7 @@ public class AIProcessingJobs
             var summary = await _aiService.GenerateTopicSummaryAsync(topicId, inputs);
 
             // Save summary
-            topic.ExecutiveSummary = System.Text.Json.JsonSerializer.Serialize(summary);
-            topic.UpdatedAt = DateTime.UtcNow;
+            topic.SetSummary(summary);
 
             await _context.SaveChangesAsync(cancellationToken);
 
