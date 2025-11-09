@@ -62,7 +62,7 @@ public class InputConfiguration : IEntityTypeConfiguration<Input>
         builder.HasIndex(i => i.Type);
         builder.HasIndex(i => i.Status);
         builder.HasIndex(i => i.Sentiment);
-        builder.HasIndex(i => i.SeverityLevel);
+        builder.HasIndex(i => i.Severity);
         builder.HasIndex(i => i.CreatedAt);
         builder.HasIndex(i => i.UpdatedAt);
 
