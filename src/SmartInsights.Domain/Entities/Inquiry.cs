@@ -20,6 +20,7 @@ public class Inquiry : BaseEntity
 
     // Timestamps
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? SentAt { get; set; }
     public DateTime? ClosedAt { get; set; }
 
