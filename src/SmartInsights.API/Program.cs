@@ -12,6 +12,7 @@ using SmartInsights.API.Infrastructure;
 using SmartInsights.Application.Interfaces;
 using SmartInsights.Application.Services;
 using SmartInsights.Infrastructure.Data;
+using SmartInsights.Infrastructure.Data.Seed;
 using SmartInsights.Infrastructure.Health;
 using SmartInsights.Infrastructure.Repositories;
 using SmartInsights.Infrastructure.Services;
@@ -73,6 +74,9 @@ builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IProgramService, ProgramService>();
 builder.Services.AddScoped<ISemesterService, SemesterService>();
 builder.Services.AddScoped<IThemeService, ThemeService>();
+
+// Register database seeder
+builder.Services.AddScoped<DbSeeder>();
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -254,6 +258,13 @@ using (var scope = app.Services.CreateScope())
     backgroundJobService.ScheduleRecurringInquirySummaries();
 
     Log.Information("Recurring AI processing jobs scheduled successfully");
+}
+
+// Seed database with initial data
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+    await seeder.SeedAsync();
 }
 
 try
