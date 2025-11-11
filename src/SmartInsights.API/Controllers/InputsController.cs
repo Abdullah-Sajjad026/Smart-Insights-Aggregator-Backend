@@ -23,6 +23,7 @@ public class InputsController : ControllerBase
     /// Get all inputs with filtering (Admin only)
     /// </summary>
     [HttpGet]
+    [HttpGet("filter")] // Support both /api/inputs and /api/inputs/filter
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> GetAll([FromQuery] InputFilterDto filter)
     {

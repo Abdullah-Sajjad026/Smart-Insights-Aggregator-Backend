@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using SmartInsights.Application.DTOs.Common;
 using SmartInsights.Application.DTOs.Inquiries;
 using SmartInsights.Application.Interfaces;
+using SmartInsights.Domain.Entities;
 
 namespace SmartInsights.API.Controllers;
 
@@ -210,11 +211,44 @@ public class InquiriesController : ControllerBase
     }
 
     /// <summary>
-    /// Get inquiry statistics
+    /// Get general inquiry statistics (Admin only)
+    /// </summary>
+    [HttpGet("stats")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> GetGeneralStats([FromServices] IRepository<Inquiry> inquiryRepository)
+    {
+        try
+        {
+            var totalInquiries = await inquiryRepository.CountAsync();
+            var draftInquiries = await inquiryRepository.CountAsync(i => i.Status == Domain.Enums.InquiryStatus.Draft);
+            var activeInquiries = await inquiryRepository.CountAsync(i => i.Status == Domain.Enums.InquiryStatus.Active);
+            var closedInquiries = await inquiryRepository.CountAsync(i => i.Status == Domain.Enums.InquiryStatus.Closed);
+
+            var stats = new
+            {
+                Total = totalInquiries,
+                ByStatus = new
+                {
+                    Draft = draftInquiries,
+                    Active = activeInquiries,
+                    Closed = closedInquiries
+                }
+            };
+
+            return Ok(ApiResponse<object>.SuccessResponse(stats));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to retrieve statistics"));
+        }
+    }
+
+    /// <summary>
+    /// Get inquiry statistics for a specific inquiry
     /// </summary>
     [HttpGet("{id}/stats")]
     [Authorize(Policy = "AdminOnly")]
-    public async Task<IActionResult> GetStats(Guid id)
+    public async Task<IActionResult> GetInquiryStats(Guid id)
     {
         try
         {

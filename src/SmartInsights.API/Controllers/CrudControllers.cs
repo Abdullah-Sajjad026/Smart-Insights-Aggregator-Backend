@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartInsights.Application.DTOs.Common;
+using SmartInsights.Application.Interfaces;
 using SmartInsights.Application.Services;
+using SmartInsights.Domain.Entities;
 
 namespace SmartInsights.API.Controllers;
 
@@ -60,6 +62,35 @@ public class TopicsController : ControllerBase
         catch (Exception)
         {
             return StatusCode(500, ApiResponse<List<TopicDto>>.ErrorResponse("Failed to retrieve topics"));
+        }
+    }
+
+    /// <summary>
+    /// Get topic statistics (Admin only)
+    /// </summary>
+    [HttpGet("stats")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> GetStats([FromServices] IRepository<Topic> topicRepository, [FromServices] IRepository<Input> inputRepository)
+    {
+        try
+        {
+            var totalTopics = await topicRepository.CountAsync();
+            var topicsWithSummaries = await topicRepository.CountAsync(t => !string.IsNullOrEmpty(t.Summary));
+            var totalInputsInTopics = await inputRepository.CountAsync(i => i.TopicId != null);
+
+            var stats = new
+            {
+                TotalTopics = totalTopics,
+                TopicsWithAISummaries = topicsWithSummaries,
+                TotalInputsInTopics = totalInputsInTopics,
+                AverageInputsPerTopic = totalTopics > 0 ? (double)totalInputsInTopics / totalTopics : 0
+            };
+
+            return Ok(ApiResponse<object>.SuccessResponse(stats));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to retrieve statistics"));
         }
     }
 }
