@@ -27,7 +27,7 @@ This project uses the **Strategy Pattern** to support multiple AI providers. You
   },
   "Gemini": {
     "ApiKey": "your-gemini-api-key-here",
-    "Model": "gemini-pro",
+    "Model": "gemini-1.5-flash",
     "Temperature": "0.7",
     "MaxTokens": "2000",
     "MaxRetries": "3",
@@ -40,8 +40,13 @@ This project uses the **Strategy Pattern** to support multiple AI providers. You
 ```bash
 export AI__Provider="gemini"
 export Gemini__ApiKey="your-gemini-api-key"
-export Gemini__Model="gemini-pro"
+export Gemini__Model="gemini-1.5-flash"
 ```
+
+> **Note:** We use `gemini-1.5-flash` instead of `gemini-pro` or `gemini-2.5-pro` because:
+> - **gemini-1.5-flash**: 15 requests/minute (Free tier) - **Recommended**
+> - **gemini-2.5-pro**: Only 2 requests/minute (Free tier) - Too restrictive
+> - **gemini-pro**: Older model, lower rate limits
 
 **Option C: Using .NET User Secrets** (Recommended for local development)
 ```bash
