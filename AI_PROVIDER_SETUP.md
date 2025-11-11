@@ -5,6 +5,7 @@ This project uses the **Strategy Pattern** to support multiple AI providers. You
 ## Supported Providers
 
 1. **Google Gemini** (Default) - Free tier available, easy to get started
+   - Uses Gemini REST API directly (no external packages required)
 2. **Azure OpenAI** - Enterprise-grade, requires Azure subscription
 
 ## Quick Start with Google Gemini (Recommended for Development)

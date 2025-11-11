@@ -49,6 +49,9 @@ builder.Services.AddHangfireServer(options =>
 // Add Memory Cache for AI response caching
 builder.Services.AddMemoryCache();
 
+// Add HttpClient for API calls (used by Gemini service)
+builder.Services.AddHttpClient();
+
 // Register Repository Pattern
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
