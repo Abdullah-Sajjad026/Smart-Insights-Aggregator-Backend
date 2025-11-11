@@ -1,8 +1,12 @@
 
 namespace SmartInsights.Domain.Enums;
+
 public enum Tone
 {
-    Positive,
-    Neutral,
-    Negative
+    Formal,
+    Informal,
+    Frustrated,
+    Appreciative,
+    Concerned,
+    Neutral
 }
