@@ -101,11 +101,12 @@ public class GeminiAIService : IAIService
             var result = ParseAnalysisResponse(response);
 
             // Track cost
-            await _costTracking.TrackUsageAsync(
+            var cost = CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount);
+            await _costTracking.LogRequestAsync(
                 "input_analysis",
                 usage.PromptTokenCount,
                 usage.CandidatesTokenCount,
-                CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount));
+                (double)cost);
 
             // Cache the result
             _cache.Set(cacheKey, result, _cacheExpiration);
@@ -138,18 +139,21 @@ public class GeminiAIService : IAIService
             var prompt = BuildTopicGenerationPrompt(body);
             var (response, usage) = await CallGeminiApiAsync(prompt, "topic_generation");
 
-            await _costTracking.TrackUsageAsync(
+            var cost = CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount);
+            await _costTracking.LogRequestAsync(
                 "topic_generation",
                 usage.PromptTokenCount,
                 usage.CandidatesTokenCount,
-                CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount));
+                (double)cost);
 
             var topicName = response.Trim().Trim('"');
 
             // Try to find existing topic
-            var existingTopic = await _topicRepository.FindAsync(t =>
+            var existingTopics = await _topicRepository.FindAsync(t =>
                 t.Name.ToLower() == topicName.ToLower() &&
                 (departmentId == null || t.DepartmentId == departmentId));
+
+            var existingTopic = existingTopics.FirstOrDefault();
 
             if (existingTopic != null)
             {
@@ -200,11 +204,12 @@ public class GeminiAIService : IAIService
             var prompt = BuildInquirySummaryPrompt(inputs);
             var (response, usage) = await CallGeminiApiAsync(prompt, "inquiry_summary");
 
-            await _costTracking.TrackUsageAsync(
+            var cost = CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount);
+            await _costTracking.LogRequestAsync(
                 "inquiry_summary",
                 usage.PromptTokenCount,
                 usage.CandidatesTokenCount,
-                CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount));
+                (double)cost);
 
             var summary = ParseExecutiveSummaryResponse(response);
             _cache.Set(cacheKey, summary, _cacheExpiration);
@@ -240,11 +245,12 @@ public class GeminiAIService : IAIService
             var prompt = BuildTopicSummaryPrompt(inputs);
             var (response, usage) = await CallGeminiApiAsync(prompt, "topic_summary");
 
-            await _costTracking.TrackUsageAsync(
+            var cost = CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount);
+            await _costTracking.LogRequestAsync(
                 "topic_summary",
                 usage.PromptTokenCount,
                 usage.CandidatesTokenCount,
-                CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount));
+                (double)cost);
 
             var summary = ParseExecutiveSummaryResponse(response);
             _cache.Set(cacheKey, summary, _cacheExpiration);
@@ -394,8 +400,11 @@ Topic name:";
 Create an executive summary in JSON format:
 {
   ""topics"": [""topic1"", ""topic2"", ""topic3""],
-  ""executiveSummary"": ""A concise 2-3 paragraph summary of key findings"",
-  ""suggestedActions"": [
+  ""executiveSummaryData"": {
+    ""summary"": ""A concise 2-3 paragraph summary of key findings"",
+    ""keyPoints"": ""Main points from the analysis""
+  },
+  ""suggestedPrioritizedActions"": [
     {
       ""action"": ""Action description"",
       ""impact"": ""Expected impact"",
@@ -534,7 +543,10 @@ Return ONLY the JSON, no additional text.");
         return new ExecutiveSummary
         {
             Topics = new List<string> { "No responses yet" },
-            ExecutiveSummaryData = "No responses have been submitted yet.",
+            ExecutiveSummaryData = new Dictionary<string, string>
+            {
+                { "summary", "No responses have been submitted yet." }
+            },
             SuggestedPrioritizedActions = new List<SuggestedAction>()
         };
     }
