@@ -27,7 +27,7 @@ This project uses the **Strategy Pattern** to support multiple AI providers. You
   },
   "Gemini": {
     "ApiKey": "your-gemini-api-key-here",
-    "Model": "gemini-1.5-flash",
+    "Model": "gemini-1.5-flash-latest",
     "Temperature": "0.7",
     "MaxTokens": "2000",
     "MaxRetries": "3",
@@ -40,13 +40,13 @@ This project uses the **Strategy Pattern** to support multiple AI providers. You
 ```bash
 export AI__Provider="gemini"
 export Gemini__ApiKey="your-gemini-api-key"
-export Gemini__Model="gemini-1.5-flash"
+export Gemini__Model="gemini-1.5-flash-latest"
 ```
 
-> **Note:** We use `gemini-1.5-flash` instead of `gemini-pro` or `gemini-2.5-pro` because:
-> - **gemini-1.5-flash**: 15 requests/minute (Free tier) - **Recommended**
+> **Note:** We use `gemini-1.5-flash-latest` instead of other models because:
+> - **gemini-1.5-flash-latest**: 15 requests/minute (Free tier) - **Recommended**
 > - **gemini-2.5-pro**: Only 2 requests/minute (Free tier) - Too restrictive
-> - **gemini-pro**: Older model, lower rate limits
+> - **gemini-pro**: Older model, deprecated
 
 **Option C: Using .NET User Secrets** (Recommended for local development)
 ```bash
@@ -104,7 +104,7 @@ You should see: `[INF] Using Azure OpenAI as AI provider`
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `Gemini:ApiKey` | Your Gemini API key (required) | - |
-| `Gemini:Model` | Model to use | `gemini-pro` |
+| `Gemini:Model` | Model to use | `gemini-1.5-flash-latest` |
 | `Gemini:Temperature` | Creativity (0.0-1.0) | `0.7` |
 | `Gemini:MaxTokens` | Max response length | `2000` |
 | `Gemini:MaxRetries` | Retry attempts on failure | `3` |

@@ -45,7 +45,7 @@ public class GeminiAIService : IAIService
     {
         _apiKey = configuration["Gemini:ApiKey"]
             ?? throw new InvalidOperationException("Gemini API key not configured. Set Gemini:ApiKey in configuration.");
-        _model = configuration["Gemini:Model"] ?? "gemini-pro";
+        _model = configuration["Gemini:Model"] ?? "gemini-1.5-flash-latest";
 
         _httpClient = httpClientFactory.CreateClient();
         _httpClient.Timeout = TimeSpan.FromSeconds(60);
