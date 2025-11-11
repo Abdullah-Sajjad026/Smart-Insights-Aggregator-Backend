@@ -57,8 +57,23 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 
-// Register improved AI service with caching and retry logic
-builder.Services.AddScoped<IAIService, ImprovedAzureOpenAIService>();
+// Register AI service based on configuration (Strategy Pattern)
+var aiProvider = builder.Configuration["AI:Provider"]?.ToLower() ?? "gemini";
+if (aiProvider == "azureopenai")
+{
+    builder.Services.AddScoped<IAIService, ImprovedAzureOpenAIService>();
+    Log.Information("Using Azure OpenAI as AI provider");
+}
+else if (aiProvider == "gemini")
+{
+    builder.Services.AddScoped<IAIService, GeminiAIService>();
+    Log.Information("Using Google Gemini as AI provider");
+}
+else
+{
+    throw new InvalidOperationException($"Unknown AI provider: {aiProvider}. Supported providers: azureopenai, gemini");
+}
+
 builder.Services.AddScoped<IAICostTrackingService, AICostTrackingService>();
 builder.Services.AddScoped<IBackgroundJobService, BackgroundJobService>();
 
