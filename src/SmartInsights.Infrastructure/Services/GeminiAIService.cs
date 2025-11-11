@@ -1,5 +1,7 @@
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -8,16 +10,16 @@ using Polly.Retry;
 using SmartInsights.Application.Interfaces;
 using SmartInsights.Domain.Entities;
 using SmartInsights.Domain.Enums;
-using Mscc.GenerativeAI;
 
 namespace SmartInsights.Infrastructure.Services;
 
 /// <summary>
-/// Google Gemini AI Service with retry logic, caching, and cost tracking
+/// Google Gemini AI Service using REST API with retry logic, caching, and cost tracking
 /// </summary>
 public class GeminiAIService : IAIService
 {
-    private readonly GoogleAI _client;
+    private readonly HttpClient _httpClient;
+    private readonly string _apiKey;
     private readonly string _model;
     private readonly ILogger<GeminiAIService> _logger;
     private readonly IRepository<Topic> _topicRepository;
@@ -38,13 +40,16 @@ public class GeminiAIService : IAIService
         IRepository<Topic> topicRepository,
         IRepository<Theme> themeRepository,
         IMemoryCache cache,
-        IAICostTrackingService costTracking)
+        IAICostTrackingService costTracking,
+        IHttpClientFactory httpClientFactory)
     {
-        var apiKey = configuration["Gemini:ApiKey"]
-            ?? throw new InvalidOperationException("Gemini API key not configured");
+        _apiKey = configuration["Gemini:ApiKey"]
+            ?? throw new InvalidOperationException("Gemini API key not configured. Set Gemini:ApiKey in configuration.");
         _model = configuration["Gemini:Model"] ?? "gemini-pro";
 
-        _client = new GoogleAI(apiKey);
+        _httpClient = httpClientFactory.CreateClient();
+        _httpClient.Timeout = TimeSpan.FromSeconds(60);
+
         _logger = logger;
         _topicRepository = topicRepository;
         _themeRepository = themeRepository;
@@ -62,7 +67,6 @@ public class GeminiAIService : IAIService
         _retryPolicy = Policy
             .Handle<HttpRequestException>()
             .Or<TaskCanceledException>()
-            .Or<Exception>(ex => ex.Message.Contains("rate limit") || ex.Message.Contains("quota"))
             .WaitAndRetryAsync(
                 _maxRetries,
                 retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
@@ -70,7 +74,7 @@ public class GeminiAIService : IAIService
                 {
                     _logger.LogWarning(
                         exception,
-                        "Gemini AI request failed. Retry {RetryCount} after {DelaySeconds}s",
+                        "Gemini API request failed. Retry {RetryCount} after {DelaySeconds}s",
                         retryCount,
                         timespan.TotalSeconds);
                 });
@@ -93,8 +97,15 @@ public class GeminiAIService : IAIService
                 ? BuildEnhancedGeneralInputAnalysisPrompt(body)
                 : BuildEnhancedInquiryInputAnalysisPrompt(body);
 
-            var response = await CallGeminiWithRetryAsync(prompt, "input_analysis");
+            var (response, usage) = await CallGeminiApiAsync(prompt, "input_analysis");
             var result = ParseAnalysisResponse(response);
+
+            // Track cost
+            await _costTracking.TrackUsageAsync(
+                "input_analysis",
+                usage.PromptTokenCount,
+                usage.CandidatesTokenCount,
+                CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount));
 
             // Cache the result
             _cache.Set(cacheKey, result, _cacheExpiration);
@@ -125,7 +136,13 @@ public class GeminiAIService : IAIService
         try
         {
             var prompt = BuildTopicGenerationPrompt(body);
-            var response = await CallGeminiWithRetryAsync(prompt, "topic_generation");
+            var (response, usage) = await CallGeminiApiAsync(prompt, "topic_generation");
+
+            await _costTracking.TrackUsageAsync(
+                "topic_generation",
+                usage.PromptTokenCount,
+                usage.CandidatesTokenCount,
+                CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount));
 
             var topicName = response.Trim().Trim('"');
 
@@ -181,7 +198,13 @@ public class GeminiAIService : IAIService
         try
         {
             var prompt = BuildInquirySummaryPrompt(inputs);
-            var response = await CallGeminiWithRetryAsync(prompt, "inquiry_summary");
+            var (response, usage) = await CallGeminiApiAsync(prompt, "inquiry_summary");
+
+            await _costTracking.TrackUsageAsync(
+                "inquiry_summary",
+                usage.PromptTokenCount,
+                usage.CandidatesTokenCount,
+                CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount));
 
             var summary = ParseExecutiveSummaryResponse(response);
             _cache.Set(cacheKey, summary, _cacheExpiration);
@@ -215,7 +238,13 @@ public class GeminiAIService : IAIService
         try
         {
             var prompt = BuildTopicSummaryPrompt(inputs);
-            var response = await CallGeminiWithRetryAsync(prompt, "topic_summary");
+            var (response, usage) = await CallGeminiApiAsync(prompt, "topic_summary");
+
+            await _costTracking.TrackUsageAsync(
+                "topic_summary",
+                usage.PromptTokenCount,
+                usage.CandidatesTokenCount,
+                CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount));
 
             var summary = ParseExecutiveSummaryResponse(response);
             _cache.Set(cacheKey, summary, _cacheExpiration);
@@ -230,51 +259,57 @@ public class GeminiAIService : IAIService
         }
     }
 
-    private async Task<string> CallGeminiWithRetryAsync(string prompt, string operationType)
+    private async Task<(string response, UsageMetadata usage)> CallGeminiApiAsync(string prompt, string operationType)
     {
         return await _retryPolicy.ExecuteAsync(async () =>
         {
-            var model = _client.GenerativeModel(_model);
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/{_model}:generateContent?key={_apiKey}";
 
-            var generateContentRequest = new GenerateContentRequest
+            var requestBody = new
             {
-                Contents = new List<Content>
+                contents = new[]
                 {
-                    new Content
+                    new
                     {
-                        Parts = new List<IPart>
+                        parts = new[]
                         {
-                            new TextData { Text = prompt }
+                            new { text = prompt }
                         }
                     }
                 },
-                GenerationConfig = new GenerationConfig
+                generationConfig = new
                 {
-                    Temperature = _temperature,
-                    MaxOutputTokens = _maxTokens
+                    temperature = _temperature,
+                    maxOutputTokens = _maxTokens
                 }
             };
 
-            var response = await model.GenerateContent(generateContentRequest);
+            var response = await _httpClient.PostAsJsonAsync(url, requestBody);
 
-            if (response?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault() is TextData textPart)
+            if (!response.IsSuccessStatusCode)
             {
-                var text = textPart.Text;
-
-                // Track cost (estimate for Gemini - adjust as needed)
-                var promptTokens = EstimateTokens(prompt);
-                var completionTokens = EstimateTokens(text);
-
-                await _costTracking.TrackUsageAsync(
-                    operationType,
-                    promptTokens,
-                    completionTokens,
-                    CalculateGeminiCost(promptTokens, completionTokens));
-
-                return text;
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Gemini API error: {StatusCode} - {Error}", response.StatusCode, errorContent);
+                throw new HttpRequestException($"Gemini API request failed: {response.StatusCode} - {errorContent}");
             }
 
-            throw new InvalidOperationException("No valid response from Gemini API");
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            var geminiResponse = JsonSerializer.Deserialize<GeminiResponse>(jsonResponse);
+
+            if (geminiResponse?.Candidates == null || !geminiResponse.Candidates.Any())
+            {
+                throw new InvalidOperationException("No candidates returned from Gemini API");
+            }
+
+            var text = geminiResponse.Candidates[0].Content.Parts[0].Text;
+            var usage = geminiResponse.UsageMetadata ?? new UsageMetadata
+            {
+                PromptTokenCount = EstimateTokens(prompt),
+                CandidatesTokenCount = EstimateTokens(text),
+                TotalTokenCount = EstimateTokens(prompt) + EstimateTokens(text)
+            };
+
+            return (text, usage);
         });
     }
 
@@ -365,7 +400,7 @@ Create an executive summary in JSON format:
       ""action"": ""Action description"",
       ""impact"": ""Expected impact"",
       ""challenges"": ""Potential challenges"",
-      ""responseCount"": number,
+      ""responseCount"": 10,
       ""supportingReasoning"": ""Why this action""
     }
   ]
@@ -520,11 +555,51 @@ Return ONLY the JSON, no additional text.");
 
     private decimal CalculateGeminiCost(int promptTokens, int completionTokens)
     {
-        // Gemini Pro pricing (as of 2024, adjust as needed):
+        // Gemini Pro pricing (as of 2024):
         // Input: $0.00025 / 1K tokens
         // Output: $0.0005 / 1K tokens
         decimal inputCost = (promptTokens / 1000m) * 0.00025m;
         decimal outputCost = (completionTokens / 1000m) * 0.0005m;
         return inputCost + outputCost;
+    }
+
+    // Gemini API Response Models
+    private class GeminiResponse
+    {
+        [JsonPropertyName("candidates")]
+        public List<Candidate>? Candidates { get; set; }
+
+        [JsonPropertyName("usageMetadata")]
+        public UsageMetadata? UsageMetadata { get; set; }
+    }
+
+    private class Candidate
+    {
+        [JsonPropertyName("content")]
+        public Content Content { get; set; } = new();
+    }
+
+    private class Content
+    {
+        [JsonPropertyName("parts")]
+        public List<Part> Parts { get; set; } = new();
+    }
+
+    private class Part
+    {
+        [JsonPropertyName("text")]
+        public string Text { get; set; } = string.Empty;
+    }
+
+    private class UsageMetadata
+    {
+        [JsonPropertyName("promptTokenCount")]
+        public int PromptTokenCount { get; set; }
+
+        [JsonPropertyName("candidatesTokenCount")]
+        public int CandidatesTokenCount { get; set; }
+
+        [JsonPropertyName("totalTokenCount")]
+        public int TotalTokenCount { get; set; }
     }
 }
