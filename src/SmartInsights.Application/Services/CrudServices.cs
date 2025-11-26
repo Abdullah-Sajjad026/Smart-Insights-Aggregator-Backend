@@ -357,6 +357,7 @@ public interface ISemesterService
     Task<List<SemesterDto>> GetAllAsync();
     Task<SemesterDto?> GetByIdAsync(Guid id);
     Task<SemesterDto> CreateAsync(string value);
+    Task<SemesterDto> UpdateAsync(Guid id, string value);
     Task DeleteAsync(Guid id);
 }
 
@@ -427,6 +428,18 @@ public class SemesterService : ISemesterService
         return (await GetByIdAsync(semester.Id))!;
     }
 
+    public async Task<SemesterDto> UpdateAsync(Guid id, string value)
+    {
+        var semester = await _semesterRepository.GetByIdAsync(id);
+        if (semester == null)
+            throw new KeyNotFoundException("Semester not found");
+
+        semester.Value = value;
+        await _semesterRepository.UpdateAsync(semester);
+
+        return (await GetByIdAsync(id))!;
+    }
+
     public async Task DeleteAsync(Guid id)
     {
         var semester = await _semesterRepository.GetByIdAsync(id);
@@ -442,6 +455,7 @@ public interface IThemeService
     Task<List<ThemeDto>> GetAllAsync();
     Task<ThemeDto?> GetByIdAsync(Guid id);
     Task<ThemeDto> CreateAsync(string name);
+    Task<ThemeDto> UpdateAsync(Guid id, string name);
     Task DeleteAsync(Guid id);
 }
 
@@ -510,6 +524,18 @@ public class ThemeService : IThemeService
 
         await _themeRepository.AddAsync(theme);
         return (await GetByIdAsync(theme.Id))!;
+    }
+
+    public async Task<ThemeDto> UpdateAsync(Guid id, string name)
+    {
+        var theme = await _themeRepository.GetByIdAsync(id);
+        if (theme == null)
+            throw new KeyNotFoundException("Theme not found");
+
+        theme.Name = name;
+        await _themeRepository.UpdateAsync(theme);
+
+        return (await GetByIdAsync(id))!;
     }
 
     public async Task DeleteAsync(Guid id)

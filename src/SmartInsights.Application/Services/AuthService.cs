@@ -45,10 +45,12 @@ public class AuthService : IAuthService
 
         return new LoginResponse
         {
+            UserId = user.Id,
             Token = token,
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,
+            FullName = user.FullName,
             Role = user.Role.ToString(),
             ExpiresAt = DateTime.UtcNow.AddMinutes(expiryMinutes)
         };

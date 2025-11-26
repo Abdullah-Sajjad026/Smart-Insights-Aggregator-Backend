@@ -27,11 +27,13 @@ public class InquiriesController : ControllerBase
     public async Task<IActionResult> GetAll(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
-        [FromQuery] string? status = null)
+        [FromQuery] string? status = null,
+        [FromQuery] Guid? departmentId = null,
+        [FromQuery] Guid? createdById = null)
     {
         try
         {
-            var result = await _inquiryService.GetAllAsync(page, pageSize, status);
+            var result = await _inquiryService.GetAllAsync(page, pageSize, status, departmentId, createdById);
             return Ok(ApiResponse<PaginatedResult<InquiryDto>>.SuccessResponse(result));
         }
         catch (Exception ex)
@@ -43,7 +45,7 @@ public class InquiriesController : ControllerBase
     /// <summary>
     /// Get inquiry by ID with full details
     /// </summary>
-    [HttpGet("{id}")]
+    [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
         try
@@ -82,6 +84,25 @@ public class InquiriesController : ControllerBase
     }
 
     /// <summary>
+    /// Get inquiries targeted to the current student
+    /// </summary>
+    [HttpGet("for-student")]
+    [Authorize(Policy = "StudentOnly")]
+    public async Task<IActionResult> GetForStudent()
+    {
+        try
+        {
+            var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var inquiries = await _inquiryService.GetForStudentAsync(userId);
+            return Ok(ApiResponse<List<InquiryDto>>.SuccessResponse(inquiries));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<List<InquiryDto>>.ErrorResponse("Failed to retrieve inquiries"));
+        }
+    }
+
+    /// <summary>
     /// Create a new inquiry (Admin only)
     /// </summary>
     [HttpPost]
@@ -92,7 +113,7 @@ public class InquiriesController : ControllerBase
         {
             var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var inquiry = await _inquiryService.CreateAsync(request, userId);
-            
+
             return CreatedAtAction(nameof(GetById), new { id = inquiry.Id },
                 ApiResponse<InquiryDto>.SuccessResponse(inquiry, "Inquiry created successfully"));
         }
@@ -109,7 +130,7 @@ public class InquiriesController : ControllerBase
     /// <summary>
     /// Update an inquiry (Admin only, Draft only)
     /// </summary>
-    [HttpPut("{id}")]
+    [HttpPut("{id:guid}")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateInquiryRequest request)
     {
@@ -135,7 +156,7 @@ public class InquiriesController : ControllerBase
     /// <summary>
     /// Send inquiry (changes status from Draft to Active)
     /// </summary>
-    [HttpPost("{id}/send")]
+    [HttpPost("{id:guid}/send")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Send(Guid id)
     {
@@ -161,7 +182,7 @@ public class InquiriesController : ControllerBase
     /// <summary>
     /// Close inquiry (changes status from Active to Closed)
     /// </summary>
-    [HttpPost("{id}/close")]
+    [HttpPost("{id:guid}/close")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Close(Guid id)
     {
@@ -187,7 +208,7 @@ public class InquiriesController : ControllerBase
     /// <summary>
     /// Delete an inquiry (Admin only, Draft only)
     /// </summary>
-    [HttpDelete("{id}")]
+    [HttpDelete("{id:guid}")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -246,7 +267,7 @@ public class InquiriesController : ControllerBase
     /// <summary>
     /// Get inquiry statistics for a specific inquiry
     /// </summary>
-    [HttpGet("{id}/stats")]
+    [HttpGet("{id:guid}/stats")]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> GetInquiryStats(Guid id)
     {

@@ -54,7 +54,7 @@ public class InputService : IInputService
             var inquiry = await _inquiryRepository.GetByIdAsync(request.InquiryId.Value);
             if (inquiry == null)
                 throw new ArgumentException("Inquiry not found");
-            
+
             if (inquiry.Status != InquiryStatus.Active)
                 throw new InvalidOperationException("Inquiry is not active");
         }
@@ -194,7 +194,7 @@ public class InputService : IInputService
         };
     }
 
-    public async Task<List<InputDto>> GetByUserAsync(Guid userId)
+    public async Task<PaginatedResult<InputDto>> GetByUserAsync(Guid userId, int page = 1, int pageSize = 20)
     {
         var inputs = await _inputRepository.FindAsync(i => i.UserId == userId,
             i => i.User,
@@ -206,7 +206,99 @@ public class InputService : IInputService
             i => i.Theme!,
             i => i.Replies);
 
-        return inputs.OrderByDescending(i => i.CreatedAt).Select(MapToDto).ToList();
+        var orderedInputs = inputs.OrderByDescending(i => i.CreatedAt).ToList();
+        var totalCount = orderedInputs.Count;
+
+        var items = orderedInputs
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(MapToDto)
+            .ToList();
+
+        return new PaginatedResult<InputDto>
+        {
+            Items = items,
+            CurrentPage = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+        };
+    }
+
+    public async Task<InputDto> UpdateAsync(Guid id, UpdateInputRequest request)
+    {
+        var input = await _inputRepository.GetByIdAsync(id);
+        if (input == null)
+        {
+            throw new KeyNotFoundException("Input not found");
+        }
+
+        // Update fields if provided
+        if (!string.IsNullOrEmpty(request.Body))
+        {
+            input.Body = request.Body;
+        }
+
+        if (!string.IsNullOrEmpty(request.Status) && Enum.TryParse<InputStatus>(request.Status, out var statusEnum))
+        {
+            input.Status = statusEnum;
+        }
+
+        if (request.TopicId.HasValue)
+        {
+            // Verify topic exists
+            var topic = await _topicRepository.GetByIdAsync(request.TopicId.Value);
+            if (topic == null)
+            {
+                throw new ArgumentException("Topic not found");
+            }
+            input.TopicId = request.TopicId.Value;
+        }
+
+        if (!string.IsNullOrEmpty(request.Sentiment) && Enum.TryParse<Sentiment>(request.Sentiment, out var sentimentEnum))
+        {
+            input.Sentiment = sentimentEnum;
+        }
+
+        if (!string.IsNullOrEmpty(request.Tone) && Enum.TryParse<Tone>(request.Tone, out var toneEnum))
+        {
+            input.Tone = toneEnum;
+        }
+
+        input.UpdatedAt = DateTime.UtcNow;
+        await _inputRepository.UpdateAsync(input);
+
+        // Reload with all relationships
+        var updatedInput = await _inputRepository.GetByIdAsync(id,
+            i => i.User,
+            i => i.User.Department!,
+            i => i.User.Program!,
+            i => i.User.Semester!,
+            i => i.Inquiry!,
+            i => i.Topic!,
+            i => i.Theme!,
+            i => i.Replies);
+
+        return MapToDto(updatedInput!);
+    }
+
+    public async Task DeleteAsync(Guid id)
+    {
+        var input = await _inputRepository.GetByIdAsync(id);
+        if (input == null)
+        {
+            throw new KeyNotFoundException("Input not found");
+        }
+
+        // Delete associated replies first
+        var replies = await _inputReplyRepository.FindAsync(r => r.InputId == id);
+        foreach (var reply in replies)
+        {
+            await _inputReplyRepository.DeleteAsync(reply);
+        }
+
+        // Delete the input
+        await _inputRepository.DeleteAsync(input);
     }
 
     public async Task RequestIdentityRevealAsync(Guid inputId)
@@ -288,7 +380,7 @@ public class InputService : IInputService
 
         // Load user for DTO
         var user = await _userRepository.GetByIdAsync(userId);
-        
+
         return new InputReplyDto
         {
             Id = reply.Id,
@@ -351,6 +443,24 @@ public class InputService : IInputService
         var inputs = await _inputRepository.GetAllAsync();
         return inputs.GroupBy(i => i.Status.ToString())
             .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    public async Task<Dictionary<string, int>> GetCountBySentimentAsync()
+    {
+        var inputs = await _inputRepository.GetAllAsync();
+        return inputs.Where(i => i.Sentiment.HasValue)
+            .GroupBy(i => i.Sentiment!.Value.ToString())
+            .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    public async Task<double> GetAverageQualityScoreAsync()
+    {
+        var inputs = await _inputRepository.GetAllAsync();
+        var scoredInputs = inputs.Where(i => i.Score.HasValue).ToList();
+
+        if (!scoredInputs.Any()) return 0;
+
+        return scoredInputs.Average(i => i.Score!.Value);
     }
 
     private static InputDto MapToDto(Input input)

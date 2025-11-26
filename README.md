@@ -14,6 +14,7 @@ AI-powered feedback collection and analysis platform for KFUEIT University.
 ### Installation
 
 1. **Clone the repository**
+
 ```bash
 git clone <repository-url>
 cd Smart-Insights-Aggregator-Backend
@@ -44,11 +45,13 @@ Update `src/SmartInsights.API/appsettings.json`:
 ```
 
 3. **Create Database**
+
 ```bash
 createdb smartinsights
 ```
 
 4. **Run Migrations**
+
 ```bash
 cd src/SmartInsights.API
 dotnet ef database update --project ../SmartInsights.Infrastructure
@@ -57,11 +60,13 @@ dotnet ef database update --project ../SmartInsights.Infrastructure
 5. **Seed Initial Data**
 
 The application will seed data on first run, or you can manually seed:
+
 ```bash
 dotnet run --seed
 ```
 
 6. **Run the API**
+
 ```bash
 dotnet run
 ```
@@ -75,10 +80,12 @@ Swagger UI: https://localhost:7000 (root path in development)
 After seeding, use these credentials:
 
 **Admin Account:**
+
 - Email: `admin@kfueit.edu.pk`
 - Password: `Password123!`
 
 **Student Account:**
+
 - Email: `student@kfueit.edu.pk`
 - Password: `Password123!`
 
@@ -108,10 +115,12 @@ SmartInsights.Domain       → Entities, Enums, Business Rules
 ## 📡 API Endpoints
 
 ### Authentication
+
 - `POST /api/auth/login` - Login and get JWT token
 - `POST /api/auth/validate` - Validate token
 
 ### Users (Admin only)
+
 - `GET /api/users` - List users with filtering
 - `GET /api/users/{id}` - Get user details
 - `POST /api/users` - Create user
@@ -121,6 +130,7 @@ SmartInsights.Domain       → Entities, Enums, Business Rules
 - `GET /api/users/stats` - User statistics
 
 ### Inquiries
+
 - `GET /api/inquiries` - List inquiries
 - `GET /api/inquiries/{id}` - Get inquiry details
 - `POST /api/inquiries` - Create inquiry (Admin)
@@ -132,6 +142,7 @@ SmartInsights.Domain       → Entities, Enums, Business Rules
 - `GET /api/inquiries/{id}/stats` - Get inquiry statistics (Admin)
 
 ### Inputs (Feedback)
+
 - `GET /api/inputs` - List with filtering (Admin)
 - `GET /api/inputs/{id}` - Get input details
 - `POST /api/inputs` - Submit feedback (Anonymous or Authenticated)
@@ -143,11 +154,13 @@ SmartInsights.Domain       → Entities, Enums, Business Rules
 - `GET /api/inputs/stats` - Input statistics (Admin)
 
 ### Topics
+
 - `GET /api/topics` - List topics
 - `GET /api/topics/{id}` - Get topic details
 - `GET /api/topics/by-department/{id}` - Topics by department
 
 ### Departments
+
 - `GET /api/departments` - List all
 - `GET /api/departments/{id}` - Get details
 - `POST /api/departments` - Create (Admin)
@@ -155,11 +168,13 @@ SmartInsights.Domain       → Entities, Enums, Business Rules
 - `DELETE /api/departments/{id}` - Delete (Admin)
 
 ### Programs, Semesters, Themes
+
 Similar CRUD endpoints for each resource.
 
 ## 🔐 Authentication
 
 ### Login Example
+
 ```bash
 curl -X POST https://localhost:7000/api/auth/login \
   -H "Content-Type: application/json" \
@@ -170,6 +185,7 @@ curl -X POST https://localhost:7000/api/auth/login \
 ```
 
 Response:
+
 ```json
 {
   "success": true,
@@ -185,6 +201,7 @@ Response:
 ```
 
 ### Using the Token
+
 ```bash
 curl -X GET https://localhost:7000/api/users \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
@@ -205,6 +222,7 @@ curl -X GET https://localhost:7000/api/users \
 ### AI Analysis Results
 
 Each input receives:
+
 - **Sentiment**: Positive, Neutral, Negative
 - **Tone**: Positive, Neutral, Negative
 - **Quality Metrics**: 0.0 to 1.0 for each dimension
@@ -216,6 +234,7 @@ Each input receives:
 ### Executive Summaries
 
 Generated when inquiry/topic has 10+ inputs:
+
 - Headline Insight
 - Response Mix (sentiment breakdown)
 - Key Takeaways
@@ -292,6 +311,7 @@ curl -X POST https://localhost:7000/api/inputs/{id}/reveal-respond \
 ### Using Postman
 
 Import the Swagger JSON:
+
 ```
 https://localhost:7000/swagger/v1/swagger.json
 ```
@@ -299,6 +319,7 @@ https://localhost:7000/swagger/v1/swagger.json
 ## 🗄️ Database Management
 
 ### Create Migration
+
 ```bash
 dotnet ef migrations add MigrationName \
   --project src/SmartInsights.Infrastructure \
@@ -306,6 +327,7 @@ dotnet ef migrations add MigrationName \
 ```
 
 ### Apply Migrations
+
 ```bash
 dotnet ef database update \
   --project src/SmartInsights.Infrastructure \
@@ -313,6 +335,7 @@ dotnet ef database update \
 ```
 
 ### Reset Database
+
 ```bash
 dotnet ef database drop --force \
   --project src/SmartInsights.Infrastructure \
@@ -326,6 +349,7 @@ dotnet ef database update \
 ## 📦 CSV Import Format
 
 ### Users CSV Format
+
 ```csv
 Email,FirstName,LastName,Password,Role,Department,Program,Semester
 john@example.com,John,Doe,Pass123!,Student,Computer Science,BS Computer Science,6
@@ -333,6 +357,7 @@ jane@example.com,Jane,Smith,Pass123!,Admin,,,
 ```
 
 Import via:
+
 ```bash
 curl -X POST https://localhost:7000/api/users/import-csv \
   -H "Authorization: Bearer ADMIN_TOKEN" \
@@ -342,15 +367,19 @@ curl -X POST https://localhost:7000/api/users/import-csv \
 ## 🔧 Troubleshooting
 
 ### "Azure OpenAI not configured"
+
 Update `appsettings.json` with valid Azure OpenAI credentials.
 
 ### "Database connection failed"
+
 Check PostgreSQL is running and connection string is correct.
 
 ### "JWT validation failed"
+
 Ensure `SecretKey` is at least 32 characters and same in all environments.
 
 ### "Migration pending"
+
 Run `dotnet ef database update` to apply migrations.
 
 ## 📚 Additional Documentation
@@ -370,11 +399,12 @@ Run `dotnet ef database update` to apply migrations.
 
 ## 📄 License
 
-Copyright © 2024 KFUEIT. All rights reserved.
+Copyright © 2025 KFUEIT. All rights reserved.
 
 ## 🆘 Support
 
 For issues and questions:
+
 - Create an issue in the repository
 - Contact: [your-email@kfueit.edu.pk]
 
