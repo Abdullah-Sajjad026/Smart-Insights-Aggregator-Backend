@@ -10,10 +10,12 @@ namespace SmartInsights.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserService _userService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IUserService userService)
     {
         _authService = authService;
+        _userService = userService;
     }
 
     [HttpPost("login")]
@@ -34,17 +36,32 @@ public class AuthController : ControllerBase
         }
     }
 
-    [HttpPost("validate")]
-    public async Task<IActionResult> ValidateToken([FromBody] string token)
+
+    [HttpGet("me")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<IActionResult> GetMe()
     {
         try
         {
-            var isValid = await _authService.ValidateTokenAsync(token);
-            return Ok(ApiResponse<bool>.SuccessResponse(isValid));
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+            {
+                return Unauthorized(ApiResponse<object>.ErrorResponse("Invalid token"));
+            }
+
+            var userId = Guid.Parse(userIdClaim.Value);
+            var user = await _userService.GetByIdAsync(userId);
+
+            if (user == null)
+            {
+                return NotFound(ApiResponse<object>.ErrorResponse("User not found"));
+            }
+
+            return Ok(ApiResponse<SmartInsights.Application.DTOs.Users.UserDto>.SuccessResponse(user));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            return Ok(ApiResponse<bool>.SuccessResponse(false));
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to retrieve user details"));
         }
     }
 }

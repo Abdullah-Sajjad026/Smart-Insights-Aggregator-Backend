@@ -12,6 +12,7 @@ using SmartInsights.API.Infrastructure;
 using SmartInsights.Application.Interfaces;
 using SmartInsights.Application.Services;
 using SmartInsights.Infrastructure.Data;
+using SmartInsights.Infrastructure.Data.Seed;
 using SmartInsights.Infrastructure.Health;
 using SmartInsights.Infrastructure.Repositories;
 using SmartInsights.Infrastructure.Services;
@@ -48,6 +49,9 @@ builder.Services.AddHangfireServer(options =>
 // Add Memory Cache for AI response caching
 builder.Services.AddMemoryCache();
 
+// Add HttpClient for API calls (used by Gemini service)
+builder.Services.AddHttpClient();
+
 // Register Repository Pattern
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
@@ -56,8 +60,23 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 
-// Register improved AI service with caching and retry logic
-builder.Services.AddScoped<IAIService, ImprovedAzureOpenAIService>();
+// Register AI service based on configuration (Strategy Pattern)
+var aiProvider = builder.Configuration["AI:Provider"]?.ToLower() ?? "gemini";
+if (aiProvider == "azureopenai")
+{
+    builder.Services.AddScoped<IAIService, ImprovedAzureOpenAIService>();
+    Log.Information("Using Azure OpenAI as AI provider");
+}
+else if (aiProvider == "gemini")
+{
+    builder.Services.AddScoped<IAIService, GeminiAIService>();
+    Log.Information("Using Google Gemini as AI provider");
+}
+else
+{
+    throw new InvalidOperationException($"Unknown AI provider: {aiProvider}. Supported providers: azureopenai, gemini");
+}
+
 builder.Services.AddScoped<IAICostTrackingService, AICostTrackingService>();
 builder.Services.AddScoped<IBackgroundJobService, BackgroundJobService>();
 
@@ -73,6 +92,9 @@ builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IProgramService, ProgramService>();
 builder.Services.AddScoped<ISemesterService, SemesterService>();
 builder.Services.AddScoped<IThemeService, ThemeService>();
+
+// Register database seeder
+builder.Services.AddScoped<DbSeeder>();
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -254,6 +276,13 @@ using (var scope = app.Services.CreateScope())
     backgroundJobService.ScheduleRecurringInquirySummaries();
 
     Log.Information("Recurring AI processing jobs scheduled successfully");
+}
+
+// Seed database with initial data
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+    await seeder.SeedAsync();
 }
 
 try

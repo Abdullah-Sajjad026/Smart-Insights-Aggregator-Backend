@@ -30,7 +30,7 @@ public class UserService : IUserService
 
     public async Task<UserDto?> GetByIdAsync(Guid id)
     {
-        var user = await _userRepository.GetByIdAsync(id, 
+        var user = await _userRepository.GetByIdAsync(id,
             u => u.Department!,
             u => u.Program!,
             u => u.Semester!);
@@ -124,7 +124,7 @@ public class UserService : IUserService
             Email = request.Email,
             FirstName = request.FirstName,
             LastName = request.LastName,
-            PasswordHash = _passwordService.HashPassword(request.Password),
+            PasswordHash = _passwordService.HashPassword(string.IsNullOrEmpty(request.Password) ? Guid.NewGuid().ToString() : request.Password),
             Role = role,
             Status = UserStatus.Active,
             DepartmentId = request.DepartmentId,
@@ -187,9 +187,9 @@ public class UserService : IUserService
     public async Task<List<UserDto>> ImportFromCsvAsync(Stream csvStream)
     {
         var users = new List<User>();
-        
+
         using var reader = new StreamReader(csvStream);
-        
+
         // Skip header
         await reader.ReadLineAsync();
 
@@ -199,11 +199,11 @@ public class UserService : IUserService
             if (string.IsNullOrWhiteSpace(line)) continue;
 
             var values = line.Split(',');
-            
+
             if (values.Length < 7) continue; // Email, FirstName, LastName, Password, Role, Department, Program, Semester
 
             var email = values[0].Trim();
-            
+
             // Skip if user already exists
             var existingUser = await _userRepository.FirstOrDefaultAsync(u => u.Email == email);
             if (existingUser != null) continue;

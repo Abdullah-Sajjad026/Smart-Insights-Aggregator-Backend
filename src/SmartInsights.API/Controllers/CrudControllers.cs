@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartInsights.Application.DTOs.Common;
+using SmartInsights.Application.Interfaces;
 using SmartInsights.Application.Services;
+using SmartInsights.Domain.Entities;
 
 namespace SmartInsights.API.Controllers;
 
@@ -60,6 +62,35 @@ public class TopicsController : ControllerBase
         catch (Exception)
         {
             return StatusCode(500, ApiResponse<List<TopicDto>>.ErrorResponse("Failed to retrieve topics"));
+        }
+    }
+
+    /// <summary>
+    /// Get topic statistics (Admin only)
+    /// </summary>
+    [HttpGet("stats")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> GetStats([FromServices] IRepository<Topic> topicRepository, [FromServices] IRepository<Input> inputRepository)
+    {
+        try
+        {
+            var totalTopics = await topicRepository.CountAsync();
+            var topicsWithSummaries = await topicRepository.CountAsync(t => !string.IsNullOrEmpty(t.Summary));
+            var totalInputsInTopics = await inputRepository.CountAsync(i => i.TopicId != null);
+
+            var stats = new
+            {
+                TotalTopics = totalTopics,
+                TopicsWithAISummaries = topicsWithSummaries,
+                TotalInputsInTopics = totalInputsInTopics,
+                AverageInputsPerTopic = totalTopics > 0 ? (double)totalInputsInTopics / totalTopics : 0
+            };
+
+            return Ok(ApiResponse<object>.SuccessResponse(stats));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to retrieve statistics"));
         }
     }
 }
@@ -293,6 +324,23 @@ public class SemestersController : ControllerBase
         }
     }
 
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        try
+        {
+            var semester = await _semesterService.GetByIdAsync(id);
+            if (semester == null)
+                return NotFound(ApiResponse<SemesterDto>.ErrorResponse("Semester not found"));
+
+            return Ok(ApiResponse<SemesterDto>.SuccessResponse(semester));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<SemesterDto>.ErrorResponse("Failed to retrieve semester"));
+        }
+    }
+
     [HttpPost]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Create([FromBody] CreateSemesterRequest request)
@@ -305,6 +353,25 @@ public class SemestersController : ControllerBase
         catch (Exception)
         {
             return StatusCode(500, ApiResponse<SemesterDto>.ErrorResponse("Failed to create semester"));
+        }
+    }
+
+    [HttpPut("{id}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateSemesterRequest request)
+    {
+        try
+        {
+            var semester = await _semesterService.UpdateAsync(id, request.Value);
+            return Ok(ApiResponse<SemesterDto>.SuccessResponse(semester, "Semester updated"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<SemesterDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<SemesterDto>.ErrorResponse("Failed to update semester"));
         }
     }
 
@@ -355,6 +422,23 @@ public class ThemesController : ControllerBase
         }
     }
 
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        try
+        {
+            var theme = await _themeService.GetByIdAsync(id);
+            if (theme == null)
+                return NotFound(ApiResponse<ThemeDto>.ErrorResponse("Theme not found"));
+
+            return Ok(ApiResponse<ThemeDto>.SuccessResponse(theme));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<ThemeDto>.ErrorResponse("Failed to retrieve theme"));
+        }
+    }
+
     [HttpPost]
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> Create([FromBody] CreateThemeRequest request)
@@ -367,6 +451,25 @@ public class ThemesController : ControllerBase
         catch (Exception)
         {
             return StatusCode(500, ApiResponse<ThemeDto>.ErrorResponse("Failed to create theme"));
+        }
+    }
+
+    [HttpPut("{id}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateThemeRequest request)
+    {
+        try
+        {
+            var theme = await _themeService.UpdateAsync(id, request.Name);
+            return Ok(ApiResponse<ThemeDto>.SuccessResponse(theme, "Theme updated"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<ThemeDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<ThemeDto>.ErrorResponse("Failed to update theme"));
         }
     }
 
@@ -418,7 +521,17 @@ public class CreateSemesterRequest
     public string Value { get; set; } = string.Empty;
 }
 
+public class UpdateSemesterRequest
+{
+    public string Value { get; set; } = string.Empty;
+}
+
 public class CreateThemeRequest
+{
+    public string Name { get; set; } = string.Empty;
+}
+
+public class UpdateThemeRequest
 {
     public string Name { get; set; } = string.Empty;
 }

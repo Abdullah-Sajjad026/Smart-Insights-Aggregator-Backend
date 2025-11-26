@@ -90,7 +90,7 @@ public class InquiryService : IInquiryService
             });
         }
 
-        return await GetByIdAsync(inquiry.Id) 
+        return await GetByIdAsync(inquiry.Id)
             ?? throw new InvalidOperationException("Failed to retrieve created inquiry");
     }
 
@@ -180,7 +180,7 @@ public class InquiryService : IInquiryService
         };
     }
 
-    public async Task<PaginatedResult<InquiryDto>> GetAllAsync(int page = 1, int pageSize = 20, string? status = null)
+    public async Task<PaginatedResult<InquiryDto>> GetAllAsync(int page = 1, int pageSize = 20, string? status = null, Guid? departmentId = null, Guid? createdById = null)
     {
         var inquiries = await _inquiryRepository.GetAllAsync(
             i => i.CreatedBy,
@@ -190,10 +190,20 @@ public class InquiryService : IInquiryService
 
         var query = inquiries.AsQueryable();
 
-        // Apply filter
+        // Apply filters
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<InquiryStatus>(status, out var statusEnum))
         {
             query = query.Where(i => i.Status == statusEnum);
+        }
+
+        if (departmentId.HasValue)
+        {
+            query = query.Where(i => i.InquiryDepartments.Any(id => id.DepartmentId == departmentId.Value));
+        }
+
+        if (createdById.HasValue)
+        {
+            query = query.Where(i => i.CreatedById == createdById.Value);
         }
 
         var totalCount = query.Count();
@@ -289,7 +299,7 @@ public class InquiryService : IInquiryService
 
         await _inquiryRepository.UpdateAsync(inquiry);
 
-        return await GetByIdAsync(inquiry.Id) 
+        return await GetByIdAsync(inquiry.Id)
             ?? throw new InvalidOperationException("Failed to retrieve updated inquiry");
     }
 
@@ -311,7 +321,7 @@ public class InquiryService : IInquiryService
 
         await _inquiryRepository.UpdateAsync(inquiry);
 
-        return await GetByIdAsync(inquiry.Id) 
+        return await GetByIdAsync(inquiry.Id)
             ?? throw new InvalidOperationException("Failed to retrieve sent inquiry");
     }
 
@@ -333,7 +343,7 @@ public class InquiryService : IInquiryService
 
         await _inquiryRepository.UpdateAsync(inquiry);
 
-        return await GetByIdAsync(inquiry.Id) 
+        return await GetByIdAsync(inquiry.Id)
             ?? throw new InvalidOperationException("Failed to retrieve closed inquiry");
     }
 
@@ -394,6 +404,70 @@ public class InquiryService : IInquiryService
         var dtos = new List<InquiryDto>();
 
         foreach (var inquiry in inquiries.OrderByDescending(i => i.CreatedAt))
+        {
+            var dto = await GetByIdAsync(inquiry.Id);
+            if (dto != null) dtos.Add(dto);
+        }
+
+        return dtos;
+    }
+    public async Task<List<InquiryDto>> GetForStudentAsync(Guid studentId)
+    {
+        var user = await _userRepository.GetByIdAsync(studentId);
+        if (user == null)
+        {
+            throw new KeyNotFoundException("User not found");
+        }
+
+        // Get all active inquiries
+        var inquiries = await _inquiryRepository.GetAllAsync(
+            i => i.CreatedBy,
+            i => i.InquiryDepartments,
+            i => i.InquiryPrograms,
+            i => i.InquirySemesters);
+
+        var activeInquiries = inquiries.Where(i => i.Status == InquiryStatus.Active).ToList();
+        var relevantInquiries = new List<Inquiry>();
+
+        foreach (var inquiry in activeInquiries)
+        {
+            bool isRelevant = true;
+
+            // Check department restriction
+            if (inquiry.InquiryDepartments.Any())
+            {
+                if (!user.DepartmentId.HasValue || !inquiry.InquiryDepartments.Any(id => id.DepartmentId == user.DepartmentId.Value))
+                {
+                    isRelevant = false;
+                }
+            }
+
+            // Check program restriction
+            if (isRelevant && inquiry.InquiryPrograms.Any())
+            {
+                if (!user.ProgramId.HasValue || !inquiry.InquiryPrograms.Any(ip => ip.ProgramId == user.ProgramId.Value))
+                {
+                    isRelevant = false;
+                }
+            }
+
+            // Check semester restriction
+            if (isRelevant && inquiry.InquirySemesters.Any())
+            {
+                if (!user.SemesterId.HasValue || !inquiry.InquirySemesters.Any(issem => issem.SemesterId == user.SemesterId.Value))
+                {
+                    isRelevant = false;
+                }
+            }
+
+            if (isRelevant)
+            {
+                relevantInquiries.Add(inquiry);
+            }
+        }
+
+        var dtos = new List<InquiryDto>();
+        foreach (var inquiry in relevantInquiries.OrderByDescending(i => i.CreatedAt))
         {
             var dto = await GetByIdAsync(inquiry.Id);
             if (dto != null) dtos.Add(dto);

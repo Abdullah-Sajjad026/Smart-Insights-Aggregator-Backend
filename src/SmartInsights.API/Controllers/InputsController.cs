@@ -23,6 +23,7 @@ public class InputsController : ControllerBase
     /// Get all inputs with filtering (Admin only)
     /// </summary>
     [HttpGet]
+    [HttpGet("filter")] // Support both /api/inputs and /api/inputs/filter
     [Authorize(Policy = "AdminOnly")]
     public async Task<IActionResult> GetAll([FromQuery] InputFilterDto filter)
     {
@@ -103,21 +104,71 @@ public class InputsController : ControllerBase
     }
 
     /// <summary>
+    /// Update an input (Admin only)
+    /// </summary>
+    [HttpPut("{id}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateInputRequest request)
+    {
+        try
+        {
+            var input = await _inputService.UpdateAsync(id, request);
+            return Ok(ApiResponse<InputDto>.SuccessResponse(input, "Input updated successfully"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<InputDto>.ErrorResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<InputDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<InputDto>.ErrorResponse("Failed to update input"));
+        }
+    }
+
+    /// <summary>
+    /// Delete an input (Admin only)
+    /// </summary>
+    [HttpDelete("{id}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        try
+        {
+            await _inputService.DeleteAsync(id);
+            return Ok(ApiResponse<object>.SuccessResponse(null, "Input deleted successfully"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to delete input"));
+        }
+    }
+
+    /// <summary>
     /// Get current user's inputs (Student only)
     /// </summary>
     [HttpGet("my-inputs")]
     [Authorize(Policy = "StudentOnly")]
-    public async Task<IActionResult> GetMyInputs()
+    public async Task<IActionResult> GetMyInputs(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
             var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            var inputs = await _inputService.GetByUserAsync(userId);
-            return Ok(ApiResponse<List<InputDto>>.SuccessResponse(inputs));
+            var result = await _inputService.GetByUserAsync(userId, page, pageSize);
+            return Ok(ApiResponse<PaginatedResult<InputDto>>.SuccessResponse(result));
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ApiResponse<List<InputDto>>.ErrorResponse("Failed to retrieve inputs"));
+            return StatusCode(500, ApiResponse<PaginatedResult<InputDto>>.ErrorResponse("Failed to retrieve inputs"));
         }
     }
 
@@ -152,14 +203,14 @@ public class InputsController : ControllerBase
     /// </summary>
     [HttpPost("{id}/reveal-respond")]
     [Authorize(Policy = "StudentOnly")]
-    public async Task<IActionResult> RespondToReveal(Guid id, [FromBody] bool approved)
+    public async Task<IActionResult> RespondToReveal(Guid id, [FromBody] RevealResponseRequest request)
     {
         try
         {
             var userId = Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            await _inputService.RespondToRevealRequestAsync(id, approved, userId);
-            return Ok(ApiResponse<object>.SuccessResponse(null, 
-                approved ? "Identity revealed" : "Identity reveal denied"));
+            await _inputService.RespondToRevealRequestAsync(id, request.Approved, userId);
+            return Ok(ApiResponse<object>.SuccessResponse(null,
+                request.Approved ? "Identity revealed" : "Identity reveal denied"));
         }
         catch (KeyNotFoundException ex)
         {
@@ -253,12 +304,16 @@ public class InputsController : ControllerBase
             var byType = await _inputService.GetCountByTypeAsync();
             var bySeverity = await _inputService.GetCountBySeverityAsync();
             var byStatus = await _inputService.GetCountByStatusAsync();
+            var bySentiment = await _inputService.GetCountBySentimentAsync();
+            var avgQuality = await _inputService.GetAverageQualityScoreAsync();
 
             var stats = new
             {
                 ByType = byType,
                 BySeverity = bySeverity,
-                ByStatus = byStatus
+                ByStatus = byStatus,
+                BySentiment = bySentiment,
+                AverageQualityScore = avgQuality
             };
 
             return Ok(ApiResponse<object>.SuccessResponse(stats));

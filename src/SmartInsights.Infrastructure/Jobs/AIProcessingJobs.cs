@@ -58,6 +58,11 @@ public class AIProcessingJobs
             _logger.LogInformation("Analyzing input {InputId} with AI", inputId);
             var analysis = await _aiService.AnalyzeInputAsync(input.Body, input.Type);
 
+            _logger.LogInformation(
+                "AI analysis for input {InputId} completed: {Analysis}",
+                inputId,
+                System.Text.Json.JsonSerializer.Serialize(analysis));
+
             // Step 2: Update input with analysis results
             input.Sentiment = analysis.Sentiment;
             input.Tone = analysis.Tone;
@@ -334,7 +339,7 @@ public class AIProcessingJobs
 
             // Find existing theme
             var existingTheme = await _context.Themes
-                .FirstOrDefaultAsync(t => t.Type == themeType, cancellationToken);
+                .FirstOrDefaultAsync(t => t.Name == themeType.ToString(), cancellationToken);
 
             if (existingTheme != null)
             {
