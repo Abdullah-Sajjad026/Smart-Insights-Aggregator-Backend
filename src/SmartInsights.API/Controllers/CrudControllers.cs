@@ -94,6 +94,25 @@ public class TopicsController : ControllerBase
             return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to retrieve statistics"));
         }
     }
+
+
+    /// <summary>
+    /// Manually trigger summary generation for a topic
+    /// </summary>
+    [HttpPost("{id}/generate-summary")]
+    [Authorize(Policy = "AdminOnly")]
+    public IActionResult GenerateSummary(Guid id, [FromServices] IBackgroundJobService backgroundJobService)
+    {
+        try
+        {
+            var jobId = backgroundJobService.EnqueueTopicSummaryGeneration(id);
+            return Ok(ApiResponse<object>.SuccessResponse(new { JobId = jobId }, "Summary generation started"));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to start summary generation"));
+        }
+    }
 }
 
 // Departments Controller (enhanced)

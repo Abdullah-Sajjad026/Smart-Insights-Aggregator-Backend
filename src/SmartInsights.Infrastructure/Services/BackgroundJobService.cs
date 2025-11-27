@@ -64,4 +64,15 @@ public class BackgroundJobService : IBackgroundJobService
             job => job.GenerateAllInquirySummariesAsync(CancellationToken.None),
             "0 2 * * *"); // Daily at 2 AM
     }
+
+    public void ScheduleRecurringTopicSummaries()
+    {
+        _logger.LogInformation("Scheduling recurring topic summary generation");
+
+        // Run daily at 3 AM to regenerate summaries for active topics
+        RecurringJob.AddOrUpdate<AIProcessingJobs>(
+            "generate-topic-summaries",
+            job => job.GenerateAllTopicSummariesAsync(CancellationToken.None),
+            "0 3 * * *"); // Daily at 3 AM
+    }
 }

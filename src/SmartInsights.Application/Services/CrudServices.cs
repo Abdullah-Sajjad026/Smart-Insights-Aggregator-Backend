@@ -4,6 +4,7 @@ using SmartInsights.Application.DTOs.Inquiries;
 using SmartInsights.Application.Interfaces;
 using SmartInsights.Domain.Entities;
 using SmartInsights.Application.DTOs.Faculties;
+using SmartInsights.Application.DTOs.Inputs;
 
 namespace SmartInsights.Application.Services;
 
@@ -22,6 +23,7 @@ public class TopicDto
     public string? Department { get; set; }
     public int InputCount { get; set; }
     public ExecutiveSummaryDto? AiSummary { get; set; }
+    public List<InputDto> Inputs { get; set; } = new();
     public DateTime CreatedAt { get; set; }
 }
 
@@ -42,6 +44,15 @@ public class TopicService : ITopicService
         if (topic == null) return null;
 
         var inputCount = await _inputRepository.CountAsync(i => i.TopicId == id);
+
+        var inputs = await _inputRepository.FindAsync(i => i.TopicId == id,
+            i => i.User,
+            i => i.User.Department!,
+            i => i.User.Program!,
+            i => i.User.Semester!,
+            i => i.Inquiry!,
+            i => i.Topic!,
+            i => i.Theme!);
 
         ExecutiveSummaryDto? summaryDto = null;
         if (!string.IsNullOrEmpty(topic.Summary))
@@ -77,6 +88,7 @@ public class TopicService : ITopicService
             Department = topic.Department?.Name,
             InputCount = inputCount,
             AiSummary = summaryDto,
+            Inputs = inputs.OrderByDescending(i => i.CreatedAt).Select(MapInputToDto).ToList(),
             CreatedAt = topic.CreatedAt
         };
     }
@@ -118,6 +130,58 @@ public class TopicService : ITopicService
         }
 
         return dtos.OrderByDescending(t => t.InputCount).ToList();
+    }
+
+    private InputDto MapInputToDto(Input input)
+    {
+        return new InputDto
+        {
+            Id = input.Id,
+            Body = input.Body,
+            Type = input.Type.ToString(),
+            Status = input.Status.ToString(),
+            Sentiment = input.Sentiment?.ToString(),
+            Tone = input.Tone?.ToString(),
+            Metrics = input.Score.HasValue ? new QualityMetrics
+            {
+                Urgency = input.UrgencyPct ?? 0,
+                Importance = input.ImportancePct ?? 0,
+                Clarity = input.ClarityPct ?? 0,
+                Quality = input.QualityPct ?? 0,
+                Helpfulness = input.HelpfulnessPct ?? 0,
+                Score = input.Score.Value,
+                Severity = input.Severity ?? 0
+            } : null,
+            User = new InputUserInfo
+            {
+                Department = input.User?.Department?.Name,
+                Program = input.User?.Program?.Name,
+                Semester = input.User?.Semester?.Value,
+                IsAnonymous = input.IsAnonymous,
+                FirstName = input.RevealApproved == true ? input.User?.FirstName : null,
+                LastName = input.RevealApproved == true ? input.User?.LastName : null,
+                Email = input.RevealApproved == true ? input.User?.Email : null
+            },
+            Inquiry = input.Inquiry != null ? new InquiryBasicInfo
+            {
+                Id = input.Inquiry.Id,
+                Body = input.Inquiry.Body
+            } : null,
+            Topic = input.Topic != null ? new TopicBasicInfo
+            {
+                Id = input.Topic.Id,
+                Name = input.Topic.Name
+            } : null,
+            Theme = input.Theme != null ? new ThemeBasicInfo
+            {
+                Id = input.Theme.Id,
+                Name = input.Theme.Name
+            } : null,
+            ReplyCount = input.Replies?.Count ?? 0,
+            RevealRequested = input.RevealRequested,
+            RevealApproved = input.RevealApproved,
+            CreatedAt = input.CreatedAt
+        };
     }
 }
 

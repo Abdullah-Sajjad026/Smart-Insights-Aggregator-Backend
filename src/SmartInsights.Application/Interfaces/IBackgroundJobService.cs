@@ -29,4 +29,9 @@ public interface IBackgroundJobService
     /// Schedule recurring job to generate inquiry summaries
     /// </summary>
     void ScheduleRecurringInquirySummaries();
+
+    /// <summary>
+    /// Schedule recurring job to generate topic summaries
+    /// </summary>
+    void ScheduleRecurringTopicSummaries();
 }

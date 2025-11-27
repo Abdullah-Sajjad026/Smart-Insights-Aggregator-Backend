@@ -323,6 +323,53 @@ public class AIProcessingJobs
         }
     }
 
+    /// <summary>
+    /// Generate summaries for all active topics (scheduled job)
+    /// </summary>
+    public async Task GenerateAllTopicSummariesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            _logger.LogInformation("Starting batch generation of topic summaries");
+
+            // Get topics that have at least one processed input
+            var activeTopics = await _context.Topics
+                .Where(t => t.Inputs.Any(i => i.AIProcessedAt != null))
+                .Select(t => t.Id)
+                .ToListAsync(cancellationToken);
+
+            if (!activeTopics.Any())
+            {
+                _logger.LogInformation("No active topics found for summary generation");
+                return;
+            }
+
+            _logger.LogInformation("Found {Count} active topics", activeTopics.Count);
+
+            foreach (var topicId in activeTopics)
+            {
+                try
+                {
+                    await GenerateTopicSummaryAsync(topicId, cancellationToken);
+
+                    // Small delay
+                    await Task.Delay(2000, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to generate summary for topic {TopicId}", topicId);
+                    // Continue with next topic
+                }
+            }
+
+            _logger.LogInformation("Batch topic summary generation completed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in batch topic summary generation");
+        }
+    }
+
     // ============================================================================
     // Helper Methods
     // ============================================================================

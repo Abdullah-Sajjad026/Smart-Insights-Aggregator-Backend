@@ -276,6 +276,9 @@ using (var scope = app.Services.CreateScope())
     // Schedule recurring job to generate inquiry summaries daily
     backgroundJobService.ScheduleRecurringInquirySummaries();
 
+    // Schedule recurring job to generate topic summaries daily
+    backgroundJobService.ScheduleRecurringTopicSummaries();
+
     Log.Information("Recurring AI processing jobs scheduled successfully");
 }
 
