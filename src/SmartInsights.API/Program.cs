@@ -92,6 +92,7 @@ builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IProgramService, ProgramService>();
 builder.Services.AddScoped<ISemesterService, SemesterService>();
 builder.Services.AddScoped<IThemeService, ThemeService>();
+builder.Services.AddScoped<IFacultyService, FacultyService>();
 
 // Register database seeder
 builder.Services.AddScoped<DbSeeder>();
@@ -127,7 +128,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Configure CORS
-var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? new[] { "http://localhost:3000" };
 
 builder.Services.AddCors(options =>
@@ -166,13 +167,13 @@ builder.Services.AddHealthChecks()
 
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo 
-    { 
-        Title = "Smart Insights Aggregator API", 
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Smart Insights Aggregator API",
         Version = "v1",
         Description = "AI-powered feedback collection and analysis platform for KFUEIT University"
     });
-    
+
     // Add JWT authentication to Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -182,7 +183,7 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-    
+
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {

@@ -29,6 +29,7 @@ public class Inquiry : BaseEntity
     public ICollection<InquiryDepartment> InquiryDepartments { get; set; } = new List<InquiryDepartment>();
     public ICollection<InquiryProgram> InquiryPrograms { get; set; } = new List<InquiryProgram>();
     public ICollection<InquirySemester> InquirySemesters { get; set; } = new List<InquirySemester>();
+    public ICollection<InquiryFaculty> InquiryFaculties { get; set; } = new List<InquiryFaculty>();
 
     public ICollection<Input> Inputs { get; set; } = new List<Input>();
 

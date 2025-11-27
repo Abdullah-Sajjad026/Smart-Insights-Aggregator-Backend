@@ -337,9 +337,9 @@ public class AIProcessingJobs
                 themeType = ThemeType.Other;
             }
 
-            // Find existing theme
+            // Find existing theme by NAME (case-insensitive)
             var existingTheme = await _context.Themes
-                .FirstOrDefaultAsync(t => t.Name == themeType.ToString(), cancellationToken);
+                .FirstOrDefaultAsync(t => t.Name.ToLower() == themeName.ToLower(), cancellationToken);
 
             if (existingTheme != null)
             {
@@ -350,7 +350,7 @@ public class AIProcessingJobs
             var newTheme = new Theme
             {
                 Id = Guid.NewGuid(),
-                Name = themeName,
+                Name = themeName, // Use the original name
                 Type = themeType,
                 Description = $"Auto-generated theme for {themeName} related feedback",
                 IsActive = true,

@@ -20,9 +20,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<Input> Inputs => Set<Input>();
     public DbSet<Topic> Topics => Set<Topic>();
     public DbSet<InputReply> InputReplies => Set<InputReply>();
+    public DbSet<Faculty> Faculties => Set<Faculty>();
     public DbSet<InquiryDepartment> InquiryDepartments => Set<InquiryDepartment>();
     public DbSet<InquiryProgram> InquiryPrograms => Set<InquiryProgram>();
     public DbSet<InquirySemester> InquirySemesters => Set<InquirySemester>();
+    public DbSet<InquiryFaculty> InquiryFaculties => Set<InquiryFaculty>();
     public DbSet<AIUsageLog> AIUsageLogs => Set<AIUsageLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

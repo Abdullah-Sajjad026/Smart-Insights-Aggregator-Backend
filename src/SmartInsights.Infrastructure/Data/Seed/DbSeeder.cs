@@ -27,6 +27,7 @@ public class DbSeeder
             await _context.Database.EnsureCreatedAsync();
 
             // Seed in order of dependencies
+            await SeedFacultiesAsync();
             await SeedDepartmentsAsync();
             await SeedProgramsAsync();
             await SemestersAsync();
@@ -42,6 +43,51 @@ public class DbSeeder
         }
     }
 
+    private async Task SeedFacultiesAsync()
+    {
+        if (await _context.Faculties.AnyAsync())
+        {
+            _logger.LogInformation("Faculties already seeded");
+            return;
+        }
+
+        var faculties = new[]
+        {
+            new Faculty
+            {
+                Id = Guid.NewGuid(),
+                Name = "Faculty of Computing & IT",
+                Description = "Faculty of Computing & Information Technology",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Faculty
+            {
+                Id = Guid.NewGuid(),
+                Name = "Faculty of Engineering",
+                Description = "Faculty of Engineering",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Faculty
+            {
+                Id = Guid.NewGuid(),
+                Name = "Faculty of Management Sciences",
+                Description = "Faculty of Management Sciences",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Faculty
+            {
+                Id = Guid.NewGuid(),
+                Name = "Faculty of Natural Sciences",
+                Description = "Faculty of Natural Sciences",
+                CreatedAt = DateTime.UtcNow
+            }
+        };
+
+        await _context.Faculties.AddRangeAsync(faculties);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation($"Seeded {faculties.Length} faculties");
+    }
+
     private async Task SeedDepartmentsAsync()
     {
         if (await _context.Departments.AnyAsync())
@@ -50,6 +96,11 @@ public class DbSeeder
             return;
         }
 
+        var computingFaculty = await _context.Faculties.FirstOrDefaultAsync(f => f.Name == "Faculty of Computing & IT");
+        var engineeringFaculty = await _context.Faculties.FirstOrDefaultAsync(f => f.Name == "Faculty of Engineering");
+        var managementFaculty = await _context.Faculties.FirstOrDefaultAsync(f => f.Name == "Faculty of Management Sciences");
+        var scienceFaculty = await _context.Faculties.FirstOrDefaultAsync(f => f.Name == "Faculty of Natural Sciences");
+
         var departments = new[]
         {
             new Department
@@ -57,6 +108,7 @@ public class DbSeeder
                 Id = Guid.NewGuid(),
                 Name = "Computer Science",
                 Description = "Department of Computer Science & IT",
+                FacultyId = computingFaculty?.Id,
                 CreatedAt = DateTime.UtcNow
             },
             new Department
@@ -64,6 +116,7 @@ public class DbSeeder
                 Id = Guid.NewGuid(),
                 Name = "Software Engineering",
                 Description = "Department of Software Engineering",
+                FacultyId = computingFaculty?.Id,
                 CreatedAt = DateTime.UtcNow
             },
             new Department
@@ -71,6 +124,7 @@ public class DbSeeder
                 Id = Guid.NewGuid(),
                 Name = "Electrical Engineering",
                 Description = "Department of Electrical Engineering",
+                FacultyId = engineeringFaculty?.Id,
                 CreatedAt = DateTime.UtcNow
             },
             new Department
@@ -78,6 +132,7 @@ public class DbSeeder
                 Id = Guid.NewGuid(),
                 Name = "Mechanical Engineering",
                 Description = "Department of Mechanical Engineering",
+                FacultyId = engineeringFaculty?.Id,
                 CreatedAt = DateTime.UtcNow
             },
             new Department
@@ -85,6 +140,23 @@ public class DbSeeder
                 Id = Guid.NewGuid(),
                 Name = "Civil Engineering",
                 Description = "Department of Civil Engineering",
+                FacultyId = engineeringFaculty?.Id,
+                CreatedAt = DateTime.UtcNow
+            },
+            new Department
+            {
+                Id = Guid.NewGuid(),
+                Name = "Management Sciences",
+                Description = "Department of Management Sciences",
+                FacultyId = managementFaculty?.Id,
+                CreatedAt = DateTime.UtcNow
+            },
+            new Department
+            {
+                Id = Guid.NewGuid(),
+                Name = "Physics",
+                Description = "Department of Physics",
+                FacultyId = scienceFaculty?.Id,
                 CreatedAt = DateTime.UtcNow
             }
         };
@@ -150,20 +222,83 @@ public class DbSeeder
             return;
         }
 
-        var themes = new[]
-        {
-            new Theme { Id = Guid.NewGuid(), Name = "Infrastructure", CreatedAt = DateTime.UtcNow },
-            new Theme { Id = Guid.NewGuid(), Name = "Academic", CreatedAt = DateTime.UtcNow },
-            new Theme { Id = Guid.NewGuid(), Name = "Technology", CreatedAt = DateTime.UtcNow },
-            new Theme { Id = Guid.NewGuid(), Name = "Facilities", CreatedAt = DateTime.UtcNow },
-            new Theme { Id = Guid.NewGuid(), Name = "Administrative", CreatedAt = DateTime.UtcNow },
-            new Theme { Id = Guid.NewGuid(), Name = "Social", CreatedAt = DateTime.UtcNow },
-            new Theme { Id = Guid.NewGuid(), Name = "Other", CreatedAt = DateTime.UtcNow }
-        };
+        var themes = new List<Theme>();
+        var csvPath = Path.Combine(AppContext.BaseDirectory, "Data", "SeedData", "themes.csv");
 
-        await _context.Themes.AddRangeAsync(themes);
-        await _context.SaveChangesAsync();
-        _logger.LogInformation($"Seeded {themes.Length} themes");
+        // Fallback to source path if running in development and file not copied to bin
+        if (!File.Exists(csvPath))
+        {
+            // Try to find it relative to the project root (assuming we are in bin/Debug/net8.0)
+            // This is a bit hacky but works for development
+            var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SmartInsights.Infrastructure"));
+            csvPath = Path.Combine(projectRoot, "Data", "SeedData", "themes.csv");
+        }
+
+        if (File.Exists(csvPath))
+        {
+            try
+            {
+                var lines = await File.ReadAllLinesAsync(csvPath);
+                // Skip header
+                foreach (var line in lines.Skip(1))
+                {
+                    var parts = line.Split(',');
+                    if (parts.Length >= 2)
+                    {
+                        var name = parts[0].Trim();
+                        var typeStr = parts[1].Trim();
+                        var description = parts.Length > 2 ? parts[2].Trim() : $"Auto-generated theme for {name}";
+
+                        if (Enum.TryParse<ThemeType>(typeStr, true, out var type))
+                        {
+                            themes.Add(new Theme
+                            {
+                                Id = Guid.NewGuid(),
+                                Name = name,
+                                Type = type,
+                                Description = description,
+                                IsActive = true,
+                                CreatedAt = DateTime.UtcNow,
+                                UpdatedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+                }
+                _logger.LogInformation($"Loaded {themes.Count} themes from CSV");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reading themes.csv");
+                // Fallback to default themes if CSV fails
+                themes.AddRange(GetDefaultThemes());
+            }
+        }
+        else
+        {
+            _logger.LogWarning($"themes.csv not found at {csvPath}. Using default themes.");
+            themes.AddRange(GetDefaultThemes());
+        }
+
+        if (themes.Any())
+        {
+            await _context.Themes.AddRangeAsync(themes);
+            await _context.SaveChangesAsync();
+            _logger.LogInformation($"Seeded {themes.Count} themes");
+        }
+    }
+
+    private IEnumerable<Theme> GetDefaultThemes()
+    {
+        return new[]
+        {
+            new Theme { Id = Guid.NewGuid(), Name = "Infrastructure", Type = ThemeType.Facilities, CreatedAt = DateTime.UtcNow },
+            new Theme { Id = Guid.NewGuid(), Name = "Academic", Type = ThemeType.Academic, CreatedAt = DateTime.UtcNow },
+            new Theme { Id = Guid.NewGuid(), Name = "Technology", Type = ThemeType.Technology, CreatedAt = DateTime.UtcNow },
+            new Theme { Id = Guid.NewGuid(), Name = "Facilities", Type = ThemeType.Facilities, CreatedAt = DateTime.UtcNow },
+            new Theme { Id = Guid.NewGuid(), Name = "Administrative", Type = ThemeType.Administrative, CreatedAt = DateTime.UtcNow },
+            new Theme { Id = Guid.NewGuid(), Name = "Social", Type = ThemeType.Social, CreatedAt = DateTime.UtcNow },
+            new Theme { Id = Guid.NewGuid(), Name = "Other", Type = ThemeType.Other, CreatedAt = DateTime.UtcNow }
+        };
     }
 
     private async Task SeedUsersAsync()

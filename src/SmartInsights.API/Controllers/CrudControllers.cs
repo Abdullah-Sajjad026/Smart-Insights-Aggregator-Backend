@@ -4,6 +4,7 @@ using SmartInsights.Application.DTOs.Common;
 using SmartInsights.Application.Interfaces;
 using SmartInsights.Application.Services;
 using SmartInsights.Domain.Entities;
+using SmartInsights.Application.DTOs.Faculties;
 
 namespace SmartInsights.API.Controllers;
 
@@ -534,4 +535,115 @@ public class CreateThemeRequest
 public class UpdateThemeRequest
 {
     public string Name { get; set; } = string.Empty;
+}
+
+// Faculties Controller
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class FacultiesController : ControllerBase
+{
+    private readonly IFacultyService _facultyService;
+
+    public FacultiesController(IFacultyService facultyService)
+    {
+        _facultyService = facultyService;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        try
+        {
+            var faculties = await _facultyService.GetAllAsync();
+            return Ok(ApiResponse<List<FacultyDto>>.SuccessResponse(faculties));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<List<FacultyDto>>.ErrorResponse("Failed to retrieve faculties"));
+        }
+    }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(Guid id)
+    {
+        try
+        {
+            var faculty = await _facultyService.GetByIdAsync(id);
+            if (faculty == null)
+                return NotFound(ApiResponse<FacultyDto>.ErrorResponse("Faculty not found"));
+
+            return Ok(ApiResponse<FacultyDto>.SuccessResponse(faculty));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<FacultyDto>.ErrorResponse("Failed to retrieve faculty"));
+        }
+    }
+
+    [HttpPost]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Create([FromBody] CreateFacultyRequest request)
+    {
+        try
+        {
+            var faculty = await _facultyService.CreateAsync(request.Name, request.Description);
+            return CreatedAtAction(nameof(GetById), new { id = faculty.Id },
+                ApiResponse<FacultyDto>.SuccessResponse(faculty, "Faculty created"));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<FacultyDto>.ErrorResponse("Failed to create faculty"));
+        }
+    }
+
+    [HttpPut("{id}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateFacultyRequest request)
+    {
+        try
+        {
+            var faculty = await _facultyService.UpdateAsync(id, request.Name, request.Description);
+            return Ok(ApiResponse<FacultyDto>.SuccessResponse(faculty, "Faculty updated"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<FacultyDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<FacultyDto>.ErrorResponse("Failed to update faculty"));
+        }
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        try
+        {
+            await _facultyService.DeleteAsync(id);
+            return Ok(ApiResponse<object>.SuccessResponse(null, "Faculty deleted"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to delete faculty"));
+        }
+    }
+}
+
+public class CreateFacultyRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+}
+
+public class UpdateFacultyRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
 }

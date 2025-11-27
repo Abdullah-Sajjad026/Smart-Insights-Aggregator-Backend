@@ -93,9 +93,16 @@ public class GeminiAIService : IAIService
 
         try
         {
+            // Load system prompt
+            var systemPrompt = await LoadSystemPromptAsync();
+
+            // Fetch active themes
+            var themes = await _themeRepository.FindAsync(t => t.IsActive);
+            var themeNames = themes.Select(t => t.Name).ToList();
+
             var prompt = type == InputType.General
-                ? BuildEnhancedGeneralInputAnalysisPrompt(body)
-                : BuildEnhancedInquiryInputAnalysisPrompt(body);
+                ? BuildEnhancedGeneralInputAnalysisPrompt(body, systemPrompt, themeNames)
+                : BuildEnhancedInquiryInputAnalysisPrompt(body, systemPrompt, themeNames);
 
             var (response, usage) = await CallGeminiApiAsync(prompt, "input_analysis");
             var result = ParseAnalysisResponse(response);
@@ -124,6 +131,25 @@ public class GeminiAIService : IAIService
         }
     }
 
+    private async Task<string> LoadSystemPromptAsync()
+    {
+        var promptPath = Path.Combine(AppContext.BaseDirectory, "Data", "SeedData", "university_prompt.txt");
+
+        // Fallback for dev environment
+        if (!File.Exists(promptPath))
+        {
+            var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../src/SmartInsights.Infrastructure"));
+            promptPath = Path.Combine(projectRoot, "Data", "SeedData", "university_prompt.txt");
+        }
+
+        if (File.Exists(promptPath))
+        {
+            return await File.ReadAllTextAsync(promptPath);
+        }
+
+        return "You are an AI assistant for a university.";
+    }
+
     public async Task<Topic> GenerateOrFindTopicAsync(string body, Guid? departmentId)
     {
         var cacheKey = $"gemini_topic_{HashString(body)}_{departmentId}";
@@ -136,7 +162,18 @@ public class GeminiAIService : IAIService
 
         try
         {
-            var prompt = BuildTopicGenerationPrompt(body);
+            // Fetch existing topics for context
+            // We limit to recent active topics to keep context window manageable
+            var existingTopics = await _topicRepository.FindAsync(t =>
+                departmentId == null || t.DepartmentId == departmentId);
+
+            var topicNames = existingTopics
+                .Select(t => t.Name)
+                .Distinct()
+                .OrderBy(n => n)
+                .ToList();
+
+            var prompt = BuildTopicGenerationPrompt(body, topicNames);
             var (response, usage) = await CallGeminiApiAsync(prompt, "topic_generation");
 
             var cost = CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount);
@@ -148,12 +185,9 @@ public class GeminiAIService : IAIService
 
             var topicName = response.Trim().Trim('"');
 
-            // Try to find existing topic
-            var existingTopics = await _topicRepository.FindAsync(t =>
-                t.Name.ToLower() == topicName.ToLower() &&
-                (departmentId == null || t.DepartmentId == departmentId));
-
-            var existingTopic = existingTopics.FirstOrDefault();
+            // Check if the returned name matches an existing topic (case-insensitive)
+            var existingTopic = existingTopics.FirstOrDefault(t =>
+                t.Name.Equals(topicName, StringComparison.OrdinalIgnoreCase));
 
             if (existingTopic != null)
             {
@@ -319,9 +353,14 @@ public class GeminiAIService : IAIService
         });
     }
 
-    private string BuildEnhancedGeneralInputAnalysisPrompt(string body)
+    private string BuildEnhancedGeneralInputAnalysisPrompt(string body, string systemPrompt, List<string> themes)
     {
-        return $@"Analyze this student feedback and return ONLY a valid JSON object with these exact fields:
+        var themesList = string.Join("\" or \"", themes);
+        if (string.IsNullOrEmpty(themesList)) themesList = "Other";
+
+        return $@"{systemPrompt}
+
+Analyze this student feedback and return ONLY a valid JSON object with these exact fields:
 
 Feedback: ""{body}""
 
@@ -334,7 +373,7 @@ Return JSON format:
   ""clarity"": 0.0 to 1.0,
   ""quality"": 0.0 to 1.0,
   ""helpfulness"": 0.0 to 1.0,
-  ""theme"": ""Infrastructure"" or ""Academic"" or ""Technology"" or ""Facilities"" or ""Administrative"" or ""Social"" or ""Other""
+  ""theme"": ""{themesList}""
 }}
 
 Guidelines:
@@ -343,13 +382,19 @@ Guidelines:
 - Clarity: How clear and specific is the feedback (0=vague, 1=very clear)
 - Quality: Overall quality of feedback (0=poor, 1=excellent)
 - Helpfulness: How actionable/useful is this feedback (0=not useful, 1=very useful)
+- Theme: Must be one of the provided options.
 
 Return ONLY the JSON, no additional text.";
     }
 
-    private string BuildEnhancedInquiryInputAnalysisPrompt(string body)
+    private string BuildEnhancedInquiryInputAnalysisPrompt(string body, string systemPrompt, List<string> themes)
     {
-        return $@"Analyze this student response to an inquiry and return ONLY a valid JSON object:
+        var themesList = string.Join("\" or \"", themes);
+        if (string.IsNullOrEmpty(themesList)) themesList = "Other";
+
+        return $@"{systemPrompt}
+
+Analyze this student response to an inquiry and return ONLY a valid JSON object:
 
 Response: ""{body}""
 
@@ -362,25 +407,34 @@ Return JSON format:
   ""clarity"": 0.0 to 1.0,
   ""quality"": 0.0 to 1.0,
   ""helpfulness"": 0.0 to 1.0,
-  ""theme"": ""Infrastructure"" or ""Academic"" or ""Technology"" or ""Facilities"" or ""Administrative"" or ""Social"" or ""Other""
+  ""theme"": ""{themesList}""
 }}
 
 Return ONLY the JSON, no additional text.";
     }
 
-    private string BuildTopicGenerationPrompt(string body)
+    private string BuildTopicGenerationPrompt(string body, List<string> existingTopics)
     {
-        return $@"Based on this student feedback, generate a concise topic name (3-6 words) that captures the main subject.
+        var sb = new StringBuilder();
+        sb.AppendLine("Based on this student feedback, assign it to an EXISTING topic from the list below, or generate a NEW concise topic name (3-6 words) if none fit.");
 
-Feedback: ""{body}""
+        if (existingTopics.Any())
+        {
+            sb.AppendLine("\nExisting Topics:");
+            foreach (var topic in existingTopics)
+            {
+                sb.AppendLine($"- {topic}");
+            }
+        }
 
-Return ONLY the topic name, nothing else. Examples:
-- ""Computer Lab Equipment Upgrade""
-- ""Library Study Spaces""
-- ""Course Registration System""
-- ""Wi-Fi Connectivity Issues""
+        sb.AppendLine($"\nFeedback: \"{body}\"");
+        sb.AppendLine("\nInstructions:");
+        sb.AppendLine("1. If the feedback clearly belongs to an existing topic, return that EXACT topic name.");
+        sb.AppendLine("2. If it represents a new issue, generate a new concise name.");
+        sb.AppendLine("3. Return ONLY the topic name, nothing else.");
+        sb.AppendLine("\nTopic name:");
 
-Topic name:";
+        return sb.ToString();
     }
 
     private string BuildInquirySummaryPrompt(List<Input> inputs)

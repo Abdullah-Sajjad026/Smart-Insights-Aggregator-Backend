@@ -13,6 +13,8 @@ public class InquiryService : IInquiryService
     private readonly IRepository<InquiryDepartment> _inquiryDepartmentRepository;
     private readonly IRepository<InquiryProgram> _inquiryProgramRepository;
     private readonly IRepository<InquirySemester> _inquirySemesterRepository;
+    private readonly IRepository<InquiryFaculty> _inquiryFacultyRepository;
+    private readonly IRepository<Faculty> _facultyRepository;
     private readonly IRepository<Department> _departmentRepository;
     private readonly IRepository<Program> _programRepository;
     private readonly IRepository<Semester> _semesterRepository;
@@ -24,9 +26,11 @@ public class InquiryService : IInquiryService
         IRepository<InquiryDepartment> inquiryDepartmentRepository,
         IRepository<InquiryProgram> inquiryProgramRepository,
         IRepository<InquirySemester> inquirySemesterRepository,
+        IRepository<InquiryFaculty> inquiryFacultyRepository,
         IRepository<Department> departmentRepository,
         IRepository<Program> programRepository,
         IRepository<Semester> semesterRepository,
+        IRepository<Faculty> facultyRepository,
         IRepository<Input> inputRepository,
         IRepository<User> userRepository)
     {
@@ -34,9 +38,11 @@ public class InquiryService : IInquiryService
         _inquiryDepartmentRepository = inquiryDepartmentRepository;
         _inquiryProgramRepository = inquiryProgramRepository;
         _inquirySemesterRepository = inquirySemesterRepository;
+        _inquiryFacultyRepository = inquiryFacultyRepository;
         _departmentRepository = departmentRepository;
         _programRepository = programRepository;
         _semesterRepository = semesterRepository;
+        _facultyRepository = facultyRepository;
         _inputRepository = inputRepository;
         _userRepository = userRepository;
     }
@@ -90,6 +96,16 @@ public class InquiryService : IInquiryService
             });
         }
 
+        // Add faculty relationships
+        foreach (var facId in request.FacultyIds)
+        {
+            await _inquiryFacultyRepository.AddAsync(new InquiryFaculty
+            {
+                InquiryId = inquiry.Id,
+                FacultyId = facId
+            });
+        }
+
         return await GetByIdAsync(inquiry.Id)
             ?? throw new InvalidOperationException("Failed to retrieve created inquiry");
     }
@@ -100,7 +116,8 @@ public class InquiryService : IInquiryService
             i => i.CreatedBy,
             i => i.InquiryDepartments,
             i => i.InquiryPrograms,
-            i => i.InquirySemesters);
+            i => i.InquirySemesters,
+            i => i.InquiryFaculties);
 
         if (inquiry == null) return null;
 
@@ -124,6 +141,13 @@ public class InquiryService : IInquiryService
         {
             var sem = await _semesterRepository.GetByIdAsync(isem.SemesterId);
             if (sem != null) semesters.Add(sem.Value);
+        }
+
+        var faculties = new List<string>();
+        foreach (var ifac in inquiry.InquiryFaculties)
+        {
+            var fac = await _facultyRepository.GetByIdAsync(ifac.FacultyId);
+            if (fac != null) faculties.Add(fac.Name);
         }
 
         // Get stats
@@ -172,6 +196,7 @@ public class InquiryService : IInquiryService
             TargetDepartments = departments,
             TargetPrograms = programs,
             TargetSemesters = semesters,
+            TargetFaculties = faculties,
             Stats = stats,
             AiSummary = summaryDto,
             CreatedAt = inquiry.CreatedAt,

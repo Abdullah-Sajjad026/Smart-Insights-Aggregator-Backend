@@ -3,6 +3,7 @@ using SmartInsights.Application.DTOs.Common;
 using SmartInsights.Application.DTOs.Inquiries;
 using SmartInsights.Application.Interfaces;
 using SmartInsights.Domain.Entities;
+using SmartInsights.Application.DTOs.Faculties;
 
 namespace SmartInsights.Application.Services;
 
@@ -83,7 +84,7 @@ public class TopicService : ITopicService
     public async Task<PaginatedResult<TopicDto>> GetAllAsync(int page = 1, int pageSize = 20)
     {
         var topics = await _topicRepository.GetAllAsync(t => t.Department!);
-        
+
         var dtos = new List<TopicDto>();
         foreach (var topic in topics)
         {
@@ -108,7 +109,7 @@ public class TopicService : ITopicService
     public async Task<List<TopicDto>> GetByDepartmentAsync(Guid departmentId)
     {
         var topics = await _topicRepository.FindAsync(t => t.DepartmentId == departmentId, t => t.Department!);
-        
+
         var dtos = new List<TopicDto>();
         foreach (var topic in topics)
         {
@@ -545,5 +546,88 @@ public class ThemeService : IThemeService
             throw new KeyNotFoundException("Theme not found");
 
         await _themeRepository.DeleteAsync(theme);
+    }
+}
+
+// Faculty Service
+public interface IFacultyService
+{
+    Task<List<FacultyDto>> GetAllAsync();
+    Task<FacultyDto?> GetByIdAsync(Guid id);
+    Task<FacultyDto> CreateAsync(string name, string? description);
+    Task<FacultyDto> UpdateAsync(Guid id, string name, string? description);
+    Task DeleteAsync(Guid id);
+}
+
+public class FacultyService : IFacultyService
+{
+    private readonly IRepository<Faculty> _facultyRepository;
+
+    public FacultyService(IRepository<Faculty> facultyRepository)
+    {
+        _facultyRepository = facultyRepository;
+    }
+
+    public async Task<List<FacultyDto>> GetAllAsync()
+    {
+        var faculties = await _facultyRepository.GetAllAsync();
+        return faculties.Select(f => new FacultyDto
+        {
+            Id = f.Id,
+            Name = f.Name,
+            Description = f.Description,
+            CreatedAt = f.CreatedAt
+        }).OrderBy(f => f.Name).ToList();
+    }
+
+    public async Task<FacultyDto?> GetByIdAsync(Guid id)
+    {
+        var faculty = await _facultyRepository.GetByIdAsync(id);
+        if (faculty == null) return null;
+
+        return new FacultyDto
+        {
+            Id = faculty.Id,
+            Name = faculty.Name,
+            Description = faculty.Description,
+            CreatedAt = faculty.CreatedAt
+        };
+    }
+
+    public async Task<FacultyDto> CreateAsync(string name, string? description)
+    {
+        var faculty = new Faculty
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Description = description,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _facultyRepository.AddAsync(faculty);
+        return (await GetByIdAsync(faculty.Id))!;
+    }
+
+    public async Task<FacultyDto> UpdateAsync(Guid id, string name, string? description)
+    {
+        var faculty = await _facultyRepository.GetByIdAsync(id);
+        if (faculty == null)
+            throw new KeyNotFoundException("Faculty not found");
+
+        faculty.Name = name;
+        faculty.Description = description;
+        faculty.UpdatedAt = DateTime.UtcNow;
+
+        await _facultyRepository.UpdateAsync(faculty);
+        return (await GetByIdAsync(id))!;
+    }
+
+    public async Task DeleteAsync(Guid id)
+    {
+        var faculty = await _facultyRepository.GetByIdAsync(id);
+        if (faculty == null)
+            throw new KeyNotFoundException("Faculty not found");
+
+        await _facultyRepository.DeleteAsync(faculty);
     }
 }

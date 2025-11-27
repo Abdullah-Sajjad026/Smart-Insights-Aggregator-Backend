@@ -9,6 +9,7 @@ public class InquiryDto
     public List<string> TargetDepartments { get; set; } = new();
     public List<string> TargetPrograms { get; set; } = new();
     public List<string> TargetSemesters { get; set; } = new();
+    public List<string> TargetFaculties { get; set; } = new();
     public InquiryStats Stats { get; set; } = new();
     public ExecutiveSummaryDto? AiSummary { get; set; }
     public DateTime CreatedAt { get; set; }
