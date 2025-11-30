@@ -8,6 +8,7 @@ namespace SmartInsights.Domain.Entities;
 public class Inquiry : BaseEntity
 {
     public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty; // The question/prompt
     public InquiryStatus Status { get; set; } = InquiryStatus.Draft;
 

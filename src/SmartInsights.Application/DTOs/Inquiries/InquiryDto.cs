@@ -3,6 +3,7 @@ namespace SmartInsights.Application.DTOs.Inquiries;
 public class InquiryDto
 {
     public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public InquiryCreatorInfo CreatedBy { get; set; } = new();

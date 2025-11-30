@@ -58,6 +58,7 @@ public class InquiryService : IInquiryService
         var inquiry = new Inquiry
         {
             Id = Guid.NewGuid(),
+            Title = request.Title,
             Body = request.Body,
             Status = status,
             CreatedById = createdById,
@@ -184,6 +185,7 @@ public class InquiryService : IInquiryService
         return new InquiryDto
         {
             Id = inquiry.Id,
+            Title = inquiry.Title,
             Body = inquiry.Body,
             Status = inquiry.Status.ToString(),
             CreatedBy = new InquiryCreatorInfo
@@ -267,6 +269,11 @@ public class InquiryService : IInquiryService
         if (inquiry.Status != InquiryStatus.Draft)
         {
             throw new InvalidOperationException("Only draft inquiries can be updated");
+        }
+
+        if (!string.IsNullOrEmpty(request.Title))
+        {
+            inquiry.Title = request.Title;
         }
 
         if (!string.IsNullOrEmpty(request.Body))

@@ -265,6 +265,33 @@ public class InquiriesController : ControllerBase
     }
 
     /// <summary>
+    /// Generate summary for an inquiry (Admin only)
+    /// </summary>
+    [HttpPost("{id:guid}/generate-summary")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> GenerateSummary(Guid id, [FromServices] IBackgroundJobService backgroundJobService)
+    {
+        try
+        {
+            // Verify inquiry exists
+            var inquiry = await _inquiryService.GetByIdAsync(id);
+            if (inquiry == null)
+            {
+                return NotFound(ApiResponse<object>.ErrorResponse("Inquiry not found"));
+            }
+
+            // Enqueue background job
+            backgroundJobService.EnqueueInquirySummaryGeneration(id);
+
+            return Ok(ApiResponse<object>.SuccessResponse(null, "Summary generation started"));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to start summary generation"));
+        }
+    }
+
+    /// <summary>
     /// Get inquiry statistics for a specific inquiry
     /// </summary>
     [HttpGet("{id:guid}/stats")]

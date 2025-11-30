@@ -2,6 +2,7 @@ namespace SmartInsights.Application.DTOs.Inquiries;
 
 public class CreateInquiryRequest
 {
+    public string Title { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
     public List<Guid> DepartmentIds { get; set; } = new();
     public List<Guid> ProgramIds { get; set; } = new();
