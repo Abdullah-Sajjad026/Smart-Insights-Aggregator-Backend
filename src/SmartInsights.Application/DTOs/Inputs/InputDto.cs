@@ -1,4 +1,5 @@
-namespace SmartInsights.Application.DTOs.Inputs;
+using SmartInsights.Application.DTOs.Inputs;
+using System.Text.Json.Serialization;
 
 public class InputDto
 {
@@ -32,12 +33,22 @@ public class QualityMetrics
 
 public class InputUserInfo
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Department { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Program { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Semester { get; set; }
     public bool IsAnonymous { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? FirstName { get; set; } // Only if revealed
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? LastName { get; set; } // Only if revealed
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Email { get; set; } // Only if revealed
 }
 

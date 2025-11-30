@@ -1,4 +1,5 @@
 using SmartInsights.Application.DTOs.Users;
+using System.Text.Json.Serialization;
 
 namespace SmartInsights.Application.DTOs.Inputs;
 
@@ -14,6 +15,10 @@ public class InputReplyDto
 public class ReplyUserInfo
 {
     public Guid Id { get; set; }
-    public string FirstName { get; set; } = string.Empty;
-    public string LastName { get; set; } = string.Empty;
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FirstName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? LastName { get; set; }
 }

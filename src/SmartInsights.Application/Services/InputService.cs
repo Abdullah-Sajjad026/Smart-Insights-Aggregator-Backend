@@ -381,6 +381,10 @@ public class InputService : IInputService
         // Load user for DTO
         var user = await _userRepository.GetByIdAsync(userId);
 
+        // Check if we should hide identity
+        bool shouldHideIdentity = input.IsAnonymous &&
+                                  userId == input.UserId;
+
         return new InputReplyDto
         {
             Id = reply.Id,
@@ -389,8 +393,8 @@ public class InputService : IInputService
             User = new ReplyUserInfo
             {
                 Id = user!.Id,
-                FirstName = user.FirstName,
-                LastName = user.LastName
+                FirstName = shouldHideIdentity ? null : user.FirstName,
+                LastName = shouldHideIdentity ? null : user.LastName
             },
             CreatedAt = reply.CreatedAt
         };
@@ -398,21 +402,31 @@ public class InputService : IInputService
 
     public async Task<List<InputReplyDto>> GetRepliesAsync(Guid inputId)
     {
+        var input = await _inputRepository.GetByIdAsync(inputId);
+        if (input == null) return new List<InputReplyDto>();
+
         var replies = await _inputReplyRepository.FindAsync(r => r.InputId == inputId,
             r => r.User);
 
-        return replies.OrderBy(r => r.CreatedAt).Select(r => new InputReplyDto
+        return replies.OrderBy(r => r.CreatedAt).Select(r =>
         {
-            Id = r.Id,
-            Message = r.Message,
-            UserRole = r.UserRole.ToString(),
-            User = new ReplyUserInfo
+            // Check if this reply is from the anonymous student author
+            bool shouldHideIdentity = input.IsAnonymous &&
+                                      r.UserId == input.UserId;
+
+            return new InputReplyDto
             {
-                Id = r.User.Id,
-                FirstName = r.User.FirstName,
-                LastName = r.User.LastName
-            },
-            CreatedAt = r.CreatedAt
+                Id = r.Id,
+                Message = r.Message,
+                UserRole = r.UserRole.ToString(),
+                User = new ReplyUserInfo
+                {
+                    Id = r.User.Id,
+                    FirstName = shouldHideIdentity ? null : r.User.FirstName,
+                    LastName = shouldHideIdentity ? null : r.User.LastName
+                },
+                CreatedAt = r.CreatedAt
+            };
         }).ToList();
     }
 
@@ -485,9 +499,9 @@ public class InputService : IInputService
             } : null,
             User = new InputUserInfo
             {
-                Department = input.User?.Department?.Name,
-                Program = input.User?.Program?.Name,
-                Semester = input.User?.Semester?.Value,
+                Department = input.IsAnonymous ? null : input.User?.Department?.Name,
+                Program = input.IsAnonymous ? null : input.User?.Program?.Name,
+                Semester = input.IsAnonymous ? null : input.User?.Semester?.Value,
                 IsAnonymous = input.IsAnonymous,
                 FirstName = input.RevealApproved == true ? input.User?.FirstName : null,
                 LastName = input.RevealApproved == true ? input.User?.LastName : null,
