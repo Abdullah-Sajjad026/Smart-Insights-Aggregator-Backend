@@ -24,7 +24,7 @@ public class AzureOpenAIService : IAIService
         IRepository<Topic> topicRepository,
         IRepository<Theme> themeRepository)
     {
-        var endpoint = configuration["AzureOpenAI:Endpoint"] 
+        var endpoint = configuration["AzureOpenAI:Endpoint"]
             ?? throw new InvalidOperationException("Azure OpenAI endpoint not configured");
         var apiKey = configuration["AzureOpenAI:ApiKey"]
             ?? throw new InvalidOperationException("Azure OpenAI API key not configured");
@@ -51,7 +51,7 @@ public class AzureOpenAIService : IAIService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error analyzing input");
-            
+
             // Return default values on error
             return new InputAnalysisResult
             {
@@ -83,10 +83,10 @@ public class AzureOpenAIService : IAIService
                 topicName = topicName.Substring(0, 97) + "...";
 
             // Check if similar topic exists for this department
-            var existingTopics = await _topicRepository.FindAsync(t => 
+            var existingTopics = await _topicRepository.FindAsync(t =>
                 t.DepartmentId == departmentId || t.DepartmentId == null);
 
-            var matchingTopic = existingTopics.FirstOrDefault(t => 
+            var matchingTopic = existingTopics.FirstOrDefault(t =>
                 t.Name.Equals(topicName, StringComparison.OrdinalIgnoreCase) ||
                 IsSimilarTopic(t.Name, topicName));
 
@@ -111,7 +111,7 @@ public class AzureOpenAIService : IAIService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating topic");
-            
+
             // Return a default topic
             return new Topic
             {
@@ -144,7 +144,7 @@ public class AzureOpenAIService : IAIService
         }
     }
 
-    public async Task<ExecutiveSummary> GenerateTopicSummaryAsync(Guid topicId, List<Input> inputs)
+    public async Task<ExecutiveSummary> GenerateTopicSummaryAsync(Guid topicId, List<Input> inputs, bool bypassCache = false)
     {
         try
         {
@@ -308,8 +308,8 @@ Provide only valid JSON, no additional text.";
             var score = (urgency + importance + clarity + quality + helpfulness) / 5.0;
             var severity = score >= 0.75 ? 3 : score >= 0.5 ? 2 : 1;
 
-            var theme = root.TryGetProperty("theme", out var themeElement) 
-                ? themeElement.GetString() ?? "General" 
+            var theme = root.TryGetProperty("theme", out var themeElement)
+                ? themeElement.GetString() ?? "General"
                 : "General";
 
             return new InputAnalysisResult
@@ -359,10 +359,10 @@ Provide only valid JSON, no additional text.";
         // Simple similarity check - can be enhanced with Levenshtein distance
         var words1 = topic1.ToLower().Split(' ');
         var words2 = topic2.ToLower().Split(' ');
-        
+
         var commonWords = words1.Intersect(words2).Count();
         var totalWords = Math.Max(words1.Length, words2.Length);
-        
+
         return (double)commonWords / totalWords >= 0.6; // 60% similarity threshold
     }
 

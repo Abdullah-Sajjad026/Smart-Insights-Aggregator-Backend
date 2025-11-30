@@ -33,12 +33,12 @@ public class BackgroundJobService : IBackgroundJobService
         return jobId;
     }
 
-    public string EnqueueTopicSummaryGeneration(Guid topicId)
+    public string EnqueueTopicSummaryGeneration(Guid topicId, bool bypassCache = false)
     {
-        _logger.LogInformation("Enqueuing topic summary generation for {TopicId}", topicId);
+        _logger.LogInformation("Enqueuing topic summary generation for {TopicId} (BypassCache: {BypassCache})", topicId, bypassCache);
 
         var jobId = BackgroundJob.Enqueue<AIProcessingJobs>(
-            job => job.GenerateTopicSummaryAsync(topicId, CancellationToken.None));
+            job => job.GenerateTopicSummaryAsync(topicId, bypassCache, CancellationToken.None));
 
         return jobId;
     }

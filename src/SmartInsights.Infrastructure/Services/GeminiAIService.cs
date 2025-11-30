@@ -258,7 +258,7 @@ public class GeminiAIService : IAIService
         }
     }
 
-    public async Task<ExecutiveSummary> GenerateTopicSummaryAsync(Guid topicId, List<Input> inputs)
+    public async Task<ExecutiveSummary> GenerateTopicSummaryAsync(Guid topicId, List<Input> inputs, bool bypassCache = false)
     {
         // Check for empty inputs first
         if (!inputs.Any())
@@ -268,16 +268,23 @@ public class GeminiAIService : IAIService
 
         var cacheKey = $"gemini_topic_summary_{topicId}_{inputs.Count}_{inputs.Max(i => i.UpdatedAt):yyyyMMddHHmmss}";
 
-        if (_cache.TryGetValue<ExecutiveSummary>(cacheKey, out var cachedSummary))
+        if (!bypassCache && _cache.TryGetValue<ExecutiveSummary>(cacheKey, out var cachedSummary))
         {
             _logger.LogInformation("Using cached topic summary from Gemini");
             return cachedSummary!;
+        }
+
+        if (bypassCache)
+        {
+            _logger.LogInformation("Bypassing cache for topic summary generation");
         }
 
         try
         {
             var prompt = BuildTopicSummaryPrompt(inputs);
             var (response, usage) = await CallGeminiApiAsync(prompt, "topic_summary");
+
+            _logger.LogInformation("Raw Gemini response for topic summary: {Response}", response);
 
             var cost = CalculateGeminiCost(usage.PromptTokenCount, usage.CandidatesTokenCount);
             await _costTracking.LogRequestAsync(
@@ -456,7 +463,7 @@ Create an executive summary in JSON format:
   ""topics"": [""topic1"", ""topic2"", ""topic3""],
   ""executiveSummaryData"": {
     ""summary"": ""A concise 2-3 paragraph summary of key findings"",
-    ""keyPoints"": ""Main points from the analysis""
+    ""keyPoints"": ""- Point 1\n- Point 2\n- Point 3 (IMPORTANT: Return as a single string with newlines, NOT a JSON array)""
   },
   ""suggestedPrioritizedActions"": [
     {
@@ -469,7 +476,7 @@ Create an executive summary in JSON format:
   ]
 }
 
-Return ONLY the JSON, no additional text.");
+Return ONLY the JSON, no additional text. Ensure executiveSummaryData values are STRINGS, not arrays.");
 
         return sb.ToString();
     }
@@ -487,10 +494,25 @@ Return ONLY the JSON, no additional text.");
         }
 
         sb.AppendLine(@"
+Create an executive summary in JSON format:
+{
+  ""topics"": [""topic1"", ""topic2"", ""topic3""],
+  ""executiveSummaryData"": {
+    ""summary"": ""A concise 2-3 paragraph summary of key findings"",
+    ""keyPoints"": ""- Point 1\n- Point 2\n- Point 3 (IMPORTANT: Return as a single string with newlines, NOT a JSON array)""
+  },
+  ""suggestedPrioritizedActions"": [
+    {
+      ""action"": ""Action description"",
+      ""impact"": ""Expected impact"",
+      ""challenges"": ""Potential challenges"",
+      ""responseCount"": 10,
+      ""supportingReasoning"": ""Why this action""
+    }
+  ]
+}
 
-Create an executive summary in JSON format (same format as inquiry summary).
-
-Return ONLY the JSON, no additional text.");
+Return ONLY the JSON, no additional text. Ensure executiveSummaryData values are STRINGS, not arrays.");
 
         return sb.ToString();
     }

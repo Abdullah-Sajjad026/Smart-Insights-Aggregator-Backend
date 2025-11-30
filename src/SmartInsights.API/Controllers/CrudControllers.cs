@@ -105,7 +105,7 @@ public class TopicsController : ControllerBase
     {
         try
         {
-            var jobId = backgroundJobService.EnqueueTopicSummaryGeneration(id);
+            var jobId = backgroundJobService.EnqueueTopicSummaryGeneration(id, bypassCache: true);
             return Ok(ApiResponse<object>.SuccessResponse(new { JobId = jobId }, "Summary generation started"));
         }
         catch (Exception)

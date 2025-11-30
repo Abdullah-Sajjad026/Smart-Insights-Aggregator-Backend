@@ -18,7 +18,7 @@ public interface IBackgroundJobService
     /// <summary>
     /// Enqueue executive summary generation for a topic
     /// </summary>
-    string EnqueueTopicSummaryGeneration(Guid topicId);
+    string EnqueueTopicSummaryGeneration(Guid topicId, bool bypassCache = false);
 
     /// <summary>
     /// Schedule recurring job to process pending inputs

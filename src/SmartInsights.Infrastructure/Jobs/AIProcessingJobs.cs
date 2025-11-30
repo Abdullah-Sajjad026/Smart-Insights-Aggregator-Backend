@@ -229,11 +229,11 @@ public class AIProcessingJobs
     /// <summary>
     /// Generate executive summary for a topic
     /// </summary>
-    public async Task GenerateTopicSummaryAsync(Guid topicId, CancellationToken cancellationToken)
+    public async Task GenerateTopicSummaryAsync(Guid topicId, bool bypassCache, CancellationToken cancellationToken)
     {
         try
         {
-            _logger.LogInformation("Generating summary for topic {TopicId}", topicId);
+            _logger.LogInformation("Generating summary for topic {TopicId} (BypassCache: {BypassCache})", topicId, bypassCache);
 
             var topic = await _context.Topics
                 .FirstOrDefaultAsync(t => t.Id == topicId, cancellationToken);
@@ -257,7 +257,7 @@ public class AIProcessingJobs
             }
 
             // Generate summary
-            var summary = await _aiService.GenerateTopicSummaryAsync(topicId, inputs);
+            var summary = await _aiService.GenerateTopicSummaryAsync(topicId, inputs, bypassCache);
 
             // Save summary
             topic.SetSummary(summary);
@@ -350,7 +350,7 @@ public class AIProcessingJobs
             {
                 try
                 {
-                    await GenerateTopicSummaryAsync(topicId, cancellationToken);
+                    await GenerateTopicSummaryAsync(topicId, false, cancellationToken);
 
                     // Small delay
                     await Task.Delay(2000, cancellationToken);

@@ -9,21 +9,21 @@ public interface IAIService
     /// Analyze a single input for sentiment, tone, quality metrics, and theme
     /// </summary>
     Task<InputAnalysisResult> AnalyzeInputAsync(string body, InputType type);
-    
+
     /// <summary>
     /// Generate or find matching topic for general feedback
     /// </summary>
     Task<Topic> GenerateOrFindTopicAsync(string body, Guid? departmentId);
-    
+
     /// <summary>
     /// Generate executive summary for an inquiry based on all its inputs
     /// </summary>
     Task<ExecutiveSummary> GenerateInquirySummaryAsync(Guid inquiryId, List<Input> inputs);
-    
+
     /// <summary>
     /// Generate executive summary for a topic based on all its inputs
     /// </summary>
-    Task<ExecutiveSummary> GenerateTopicSummaryAsync(Guid topicId, List<Input> inputs);
+    Task<ExecutiveSummary> GenerateTopicSummaryAsync(Guid topicId, List<Input> inputs, bool bypassCache = false);
 }
 
 public class InputAnalysisResult

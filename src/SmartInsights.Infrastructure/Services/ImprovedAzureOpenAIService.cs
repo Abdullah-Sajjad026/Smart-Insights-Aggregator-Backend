@@ -224,7 +224,7 @@ public class ImprovedAzureOpenAIService : IAIService
         }
     }
 
-    public async Task<ExecutiveSummary> GenerateTopicSummaryAsync(Guid topicId, List<Input> inputs)
+    public async Task<ExecutiveSummary> GenerateTopicSummaryAsync(Guid topicId, List<Input> inputs, bool bypassCache = false)
     {
         // Check for empty inputs first
         if (!inputs.Any())
