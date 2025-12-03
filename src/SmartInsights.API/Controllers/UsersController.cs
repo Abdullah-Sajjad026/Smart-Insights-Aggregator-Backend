@@ -95,7 +95,7 @@ public class UsersController : ControllerBase
         try
         {
             var user = await _userService.CreateAsync(request);
-            return CreatedAtAction(nameof(GetById), new { id = user.Id }, 
+            return CreatedAtAction(nameof(GetById), new { id = user.Id },
                 ApiResponse<UserDto>.SuccessResponse(user, "User created successfully"));
         }
         catch (InvalidOperationException ex)
@@ -166,26 +166,26 @@ public class UsersController : ControllerBase
     {
         if (file == null || file.Length == 0)
         {
-            return BadRequest(ApiResponse<List<UserDto>>.ErrorResponse("No file uploaded"));
+            return BadRequest(ApiResponse<BulkImportResultDto>.ErrorResponse("No file uploaded"));
         }
 
         if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
         {
-            return BadRequest(ApiResponse<List<UserDto>>.ErrorResponse("File must be a CSV"));
+            return BadRequest(ApiResponse<BulkImportResultDto>.ErrorResponse("File must be a CSV"));
         }
 
         try
         {
             using var stream = file.OpenReadStream();
-            var users = await _userService.ImportFromCsvAsync(stream);
-            
-            return Ok(ApiResponse<List<UserDto>>.SuccessResponse(
-                users, 
-                $"{users.Count} users imported successfully"));
+            var result = await _userService.ImportFromCsvAsync(stream);
+
+            return Ok(ApiResponse<BulkImportResultDto>.SuccessResponse(
+                result,
+                $"{result.SuccessCount} users imported successfully. {result.FailureCount} failed."));
         }
         catch (Exception ex)
         {
-            return StatusCode(500, ApiResponse<List<UserDto>>.ErrorResponse("Failed to import users"));
+            return StatusCode(500, ApiResponse<BulkImportResultDto>.ErrorResponse("Failed to import users"));
         }
     }
 

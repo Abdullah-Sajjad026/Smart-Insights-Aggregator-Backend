@@ -184,63 +184,176 @@ public class UserService : IUserService
         await _userRepository.DeleteAsync(user);
     }
 
-    public async Task<List<UserDto>> ImportFromCsvAsync(Stream csvStream)
+    public async Task<BulkImportResultDto> ImportFromCsvAsync(Stream csvStream)
     {
-        var users = new List<User>();
+        var result = new BulkImportResultDto();
+        var validUsers = new List<User>();
+        var rowNumber = 0;
+
+        // Pre-fetch lookup data
+        var departments = await _departmentRepository.GetAllAsync();
+        var programs = await _programRepository.GetAllAsync();
+        var semesters = await _semesterRepository.GetAllAsync();
 
         using var reader = new StreamReader(csvStream);
 
         // Skip header
         await reader.ReadLineAsync();
+        rowNumber++;
 
         while (!reader.EndOfStream)
         {
             var line = await reader.ReadLineAsync();
+            rowNumber++;
+
             if (string.IsNullOrWhiteSpace(line)) continue;
 
             var values = line.Split(',');
 
-            if (values.Length < 7) continue; // Email, FirstName, LastName, Password, Role, Department, Program, Semester
+            // Basic column count check
+            if (values.Length < 3) // At least Email, FirstName, LastName
+            {
+                result.Results.Add(new ImportResultDetailDto
+                {
+                    RowNumber = rowNumber,
+                    Status = "Failure",
+                    ErrorMessage = "Invalid row format: insufficient columns"
+                });
+                result.FailureCount++;
+                continue;
+            }
 
             var email = values[0].Trim();
+            var firstName = values[1].Trim();
+            var lastName = values[2].Trim();
 
-            // Skip if user already exists
+            // Password (optional/default)
+            var password = values.Length > 3 ? values[3].Trim() : null;
+            if (string.IsNullOrEmpty(password)) password = Guid.NewGuid().ToString("N").Substring(0, 8); // Generate random password
+
+            // Role is always Student for bulk import
+            var role = Role.Student;
+
+            // Check if user already exists
             var existingUser = await _userRepository.FirstOrDefaultAsync(u => u.Email == email);
-            if (existingUser != null) continue;
-
-            if (!Enum.TryParse<Role>(values[4].Trim(), out var role))
+            if (existingUser != null)
+            {
+                result.Results.Add(new ImportResultDetailDto
+                {
+                    RowNumber = rowNumber,
+                    Email = email,
+                    Status = "Failure",
+                    ErrorMessage = "User with this email already exists"
+                });
+                result.FailureCount++;
                 continue;
+            }
 
             Guid? departmentId = null, programId = null, semesterId = null;
 
-            if (role == Role.Student)
+            // Department
+            if (values.Length > 4 && !string.IsNullOrWhiteSpace(values[4]))
             {
-                // Find department by name
-                var department = (await _departmentRepository.GetAllAsync())
-                    .FirstOrDefault(d => d.Name.Equals(values[5].Trim(), StringComparison.OrdinalIgnoreCase));
-                if (department == null) continue;
+                var deptName = values[4].Trim();
+                var department = departments.FirstOrDefault(d => d.Name.Equals(deptName, StringComparison.OrdinalIgnoreCase));
+                if (department == null)
+                {
+                    result.Results.Add(new ImportResultDetailDto
+                    {
+                        RowNumber = rowNumber,
+                        Email = email,
+                        Status = "Failure",
+                        ErrorMessage = $"Department '{deptName}' not found"
+                    });
+                    result.FailureCount++;
+                    continue;
+                }
                 departmentId = department.Id;
+            }
+            else
+            {
+                result.Results.Add(new ImportResultDetailDto
+                {
+                    RowNumber = rowNumber,
+                    Email = email,
+                    Status = "Failure",
+                    ErrorMessage = "Department is required"
+                });
+                result.FailureCount++;
+                continue;
+            }
 
-                // Find program by name
-                var program = (await _programRepository.GetAllAsync())
-                    .FirstOrDefault(p => p.Name.Equals(values[6].Trim(), StringComparison.OrdinalIgnoreCase));
-                if (program == null) continue;
+            // Program
+            if (values.Length > 5 && !string.IsNullOrWhiteSpace(values[5]))
+            {
+                var progName = values[5].Trim();
+                var program = programs.FirstOrDefault(p => p.Name.Equals(progName, StringComparison.OrdinalIgnoreCase));
+                if (program == null)
+                {
+                    result.Results.Add(new ImportResultDetailDto
+                    {
+                        RowNumber = rowNumber,
+                        Email = email,
+                        Status = "Failure",
+                        ErrorMessage = $"Program '{progName}' not found"
+                    });
+                    result.FailureCount++;
+                    continue;
+                }
                 programId = program.Id;
+            }
+            else
+            {
+                result.Results.Add(new ImportResultDetailDto
+                {
+                    RowNumber = rowNumber,
+                    Email = email,
+                    Status = "Failure",
+                    ErrorMessage = "Program is required"
+                });
+                result.FailureCount++;
+                continue;
+            }
 
-                // Find semester by value
-                var semester = (await _semesterRepository.GetAllAsync())
-                    .FirstOrDefault(s => s.Value.Equals(values[7].Trim(), StringComparison.OrdinalIgnoreCase));
-                if (semester == null) continue;
+            // Semester
+            if (values.Length > 6 && !string.IsNullOrWhiteSpace(values[6]))
+            {
+                var semValue = values[6].Trim();
+                var semester = semesters.FirstOrDefault(s => s.Value.Equals(semValue, StringComparison.OrdinalIgnoreCase));
+                if (semester == null)
+                {
+                    result.Results.Add(new ImportResultDetailDto
+                    {
+                        RowNumber = rowNumber,
+                        Email = email,
+                        Status = "Failure",
+                        ErrorMessage = $"Semester '{semValue}' not found"
+                    });
+                    result.FailureCount++;
+                    continue;
+                }
                 semesterId = semester.Id;
+            }
+            else
+            {
+                result.Results.Add(new ImportResultDetailDto
+                {
+                    RowNumber = rowNumber,
+                    Email = email,
+                    Status = "Failure",
+                    ErrorMessage = "Semester is required"
+                });
+                result.FailureCount++;
+                continue;
             }
 
             var user = new User
             {
                 Id = Guid.NewGuid(),
                 Email = email,
-                FirstName = values[1].Trim(),
-                LastName = values[2].Trim(),
-                PasswordHash = _passwordService.HashPassword(values[3].Trim()),
+                FirstName = firstName,
+                LastName = lastName,
+                PasswordHash = _passwordService.HashPassword(password),
                 Role = role,
                 Status = UserStatus.Active,
                 DepartmentId = departmentId,
@@ -250,15 +363,30 @@ public class UserService : IUserService
                 UpdatedAt = DateTime.UtcNow
             };
 
-            users.Add(user);
+            validUsers.Add(user);
+            result.Results.Add(new ImportResultDetailDto
+            {
+                RowNumber = rowNumber,
+                Email = email,
+                Status = "Success"
+            });
+            result.SuccessCount++;
         }
 
-        if (users.Any())
+        if (validUsers.Any())
         {
-            await _userRepository.AddRangeAsync(users);
+            await _userRepository.AddRangeAsync(validUsers);
+
+            // Mock sending invites
+            foreach (var user in validUsers)
+            {
+                // In a real app, we would enqueue an email job here
+                // _emailService.SendInviteAsync(user.Email, ...);
+                Console.WriteLine($"[Mock] Sending invite to {user.Email}");
+            }
         }
 
-        return users.Select(MapToDto).ToList();
+        return result;
     }
 
     public async Task<int> GetTotalCountAsync()

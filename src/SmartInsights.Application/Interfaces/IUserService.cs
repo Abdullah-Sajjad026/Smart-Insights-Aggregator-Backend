@@ -11,7 +11,7 @@ public interface IUserService
     Task<UserDto> CreateAsync(CreateUserRequest request);
     Task<UserDto> UpdateAsync(Guid id, UpdateUserRequest request);
     Task DeleteAsync(Guid id);
-    Task<List<UserDto>> ImportFromCsvAsync(Stream csvStream);
+    Task<BulkImportResultDto> ImportFromCsvAsync(Stream csvStream);
     Task<int> GetTotalCountAsync();
     Task<Dictionary<string, int>> GetCountByRoleAsync();
 }
