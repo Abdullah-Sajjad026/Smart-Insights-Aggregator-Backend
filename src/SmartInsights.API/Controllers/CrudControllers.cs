@@ -249,6 +249,10 @@ public class DepartmentsController : ControllerBase
         {
             return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
         }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
         catch (Exception)
         {
             return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to delete department"));
@@ -348,6 +352,10 @@ public class ProgramsController : ControllerBase
         {
             return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
         }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
         catch (Exception)
         {
             return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to delete program"));
@@ -445,6 +453,10 @@ public class SemestersController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<object>.ErrorResponse(ex.Message));
         }
         catch (Exception)
         {
@@ -685,6 +697,10 @@ public class FacultiesController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<object>.ErrorResponse(ex.Message));
         }
         catch (Exception)
         {

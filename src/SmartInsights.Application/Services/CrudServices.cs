@@ -342,6 +342,14 @@ public class DepartmentService : IDepartmentService
         if (department == null)
             throw new KeyNotFoundException("Department not found");
 
+        var userCount = await _userRepository.CountAsync(u => u.DepartmentId == id);
+        if (userCount > 0)
+            throw new InvalidOperationException($"Cannot delete department because it has {userCount} users associated with it.");
+
+        var topicCount = await _topicRepository.CountAsync(t => t.DepartmentId == id);
+        if (topicCount > 0)
+            throw new InvalidOperationException($"Cannot delete department because it has {topicCount} topics associated with it.");
+
         await _departmentRepository.DeleteAsync(department);
     }
 }
@@ -439,6 +447,10 @@ public class ProgramService : IProgramService
         var program = await _programRepository.GetByIdAsync(id);
         if (program == null)
             throw new KeyNotFoundException("Program not found");
+
+        var userCount = await _userRepository.CountAsync(u => u.ProgramId == id);
+        if (userCount > 0)
+            throw new InvalidOperationException($"Cannot delete program because it has {userCount} users associated with it.");
 
         await _programRepository.DeleteAsync(program);
     }
@@ -538,6 +550,10 @@ public class SemesterService : ISemesterService
         var semester = await _semesterRepository.GetByIdAsync(id);
         if (semester == null)
             throw new KeyNotFoundException("Semester not found");
+
+        var userCount = await _userRepository.CountAsync(u => u.SemesterId == id);
+        if (userCount > 0)
+            throw new InvalidOperationException($"Cannot delete semester because it has {userCount} users associated with it.");
 
         await _semesterRepository.DeleteAsync(semester);
     }
