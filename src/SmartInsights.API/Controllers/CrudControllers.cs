@@ -22,11 +22,11 @@ public class TopicsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<IActionResult> GetAll([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] bool includeArchived = false)
     {
         try
         {
-            var result = await _topicService.GetAllAsync(page, pageSize);
+            var result = await _topicService.GetAllAsync(page, pageSize, includeArchived);
             return Ok(ApiResponse<PaginatedResult<TopicDto>>.SuccessResponse(result));
         }
         catch (Exception)
@@ -111,6 +111,44 @@ public class TopicsController : ControllerBase
         catch (Exception)
         {
             return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to start summary generation"));
+        }
+    }
+
+    [HttpPut("{id}/archive")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Archive(Guid id)
+    {
+        try
+        {
+            await _topicService.ArchiveAsync(id);
+            return Ok(ApiResponse<object>.SuccessResponse(null, "Topic archived successfully"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to archive topic"));
+        }
+    }
+
+    [HttpPut("{id}/unarchive")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Unarchive(Guid id)
+    {
+        try
+        {
+            await _topicService.UnarchiveAsync(id);
+            return Ok(ApiResponse<object>.SuccessResponse(null, "Topic unarchived successfully"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to unarchive topic"));
         }
     }
 }

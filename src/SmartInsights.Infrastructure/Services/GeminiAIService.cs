@@ -165,7 +165,7 @@ public class GeminiAIService : IAIService
             // Fetch existing topics for context
             // We limit to recent active topics to keep context window manageable
             var existingTopics = await _topicRepository.FindAsync(t =>
-                departmentId == null || t.DepartmentId == departmentId);
+                (departmentId == null || t.DepartmentId == departmentId) && !t.IsArchived);
 
             var topicNames = existingTopics
                 .Select(t => t.Name)

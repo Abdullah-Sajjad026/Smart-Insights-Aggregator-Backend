@@ -12,8 +12,10 @@ namespace SmartInsights.Application.Services;
 public interface ITopicService
 {
     Task<TopicDto?> GetByIdAsync(Guid id);
-    Task<PaginatedResult<TopicDto>> GetAllAsync(int page = 1, int pageSize = 20);
-    Task<List<TopicDto>> GetByDepartmentAsync(Guid departmentId);
+    Task<PaginatedResult<TopicDto>> GetAllAsync(int page = 1, int pageSize = 20, bool includeArchived = false);
+    Task<List<TopicDto>> GetByDepartmentAsync(Guid departmentId, bool includeArchived = false);
+    Task ArchiveAsync(Guid id);
+    Task UnarchiveAsync(Guid id);
 }
 
 public class TopicDto
@@ -21,6 +23,7 @@ public class TopicDto
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Department { get; set; }
+    public bool IsArchived { get; set; }
     public int InputCount { get; set; }
     public ExecutiveSummaryDto? AiSummary { get; set; }
     public List<InputDto> Inputs { get; set; } = new();
@@ -86,6 +89,7 @@ public class TopicService : ITopicService
             Id = topic.Id,
             Name = topic.Name,
             Department = topic.Department?.Name,
+            IsArchived = topic.IsArchived,
             InputCount = inputCount,
             AiSummary = summaryDto,
             Inputs = inputs.OrderByDescending(i => i.CreatedAt).Select(MapInputToDto).ToList(),
@@ -93,9 +97,13 @@ public class TopicService : ITopicService
         };
     }
 
-    public async Task<PaginatedResult<TopicDto>> GetAllAsync(int page = 1, int pageSize = 20)
+    public async Task<PaginatedResult<TopicDto>> GetAllAsync(int page = 1, int pageSize = 20, bool includeArchived = false)
     {
         var topics = await _topicRepository.GetAllAsync(t => t.Department!);
+        if (!includeArchived)
+        {
+            topics = topics.Where(t => !t.IsArchived).ToList();
+        }
 
         var dtos = new List<TopicDto>();
         foreach (var topic in topics)
@@ -118,9 +126,9 @@ public class TopicService : ITopicService
         };
     }
 
-    public async Task<List<TopicDto>> GetByDepartmentAsync(Guid departmentId)
+    public async Task<List<TopicDto>> GetByDepartmentAsync(Guid departmentId, bool includeArchived = false)
     {
-        var topics = await _topicRepository.FindAsync(t => t.DepartmentId == departmentId, t => t.Department!);
+        var topics = await _topicRepository.FindAsync(t => t.DepartmentId == departmentId && (includeArchived || !t.IsArchived), t => t.Department!);
 
         var dtos = new List<TopicDto>();
         foreach (var topic in topics)
@@ -182,6 +190,26 @@ public class TopicService : ITopicService
             RevealApproved = input.RevealApproved,
             CreatedAt = input.CreatedAt
         };
+    }
+
+    public async Task ArchiveAsync(Guid id)
+    {
+        var topic = await _topicRepository.GetByIdAsync(id);
+        if (topic == null) throw new KeyNotFoundException("Topic not found");
+
+        topic.IsArchived = true;
+        topic.UpdatedAt = DateTime.UtcNow;
+        await _topicRepository.UpdateAsync(topic);
+    }
+
+    public async Task UnarchiveAsync(Guid id)
+    {
+        var topic = await _topicRepository.GetByIdAsync(id);
+        if (topic == null) throw new KeyNotFoundException("Topic not found");
+
+        topic.IsArchived = false;
+        topic.UpdatedAt = DateTime.UtcNow;
+        await _topicRepository.UpdateAsync(topic);
     }
 }
 

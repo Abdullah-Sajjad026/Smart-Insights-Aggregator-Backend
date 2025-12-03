@@ -9,6 +9,7 @@ public class Topic : BaseEntity
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty; // AI-generated (max 5 words)
     public Guid? DepartmentId { get; set; }
+    public bool IsArchived { get; set; } = false;
 
     // AI-generated summary (stored as JSON)
     public string? Summary { get; set; } // ExecutiveSummary JSON
