@@ -476,6 +476,12 @@ Create an executive summary in JSON format:
   ]
 }
 
+CRITICAL INSTRUCTIONS FOR ACTIONS:
+1. Generate a MAXIMUM of 5 suggested actions.
+2. Actions must be HIGHLY ACTIONABLE and SPECIFIC. Avoid generic advice like ""Improve communication"". Instead, say ""Implement weekly status emails"".
+3. Act as an expert consultant. Focus on high-impact, feasible interventions.
+4. Prioritize actions that address the most urgent or widespread issues.
+
 Return ONLY the JSON, no additional text. Ensure executiveSummaryData values are STRINGS, not arrays.");
 
         return sb.ToString();
@@ -511,6 +517,12 @@ Create an executive summary in JSON format:
     }
   ]
 }
+
+CRITICAL INSTRUCTIONS FOR ACTIONS:
+1. Generate a MAXIMUM of 5 suggested actions.
+2. Actions must be HIGHLY ACTIONABLE and SPECIFIC. Avoid generic advice.
+3. Act as an expert consultant. Focus on high-impact, feasible interventions.
+4. Prioritize actions that address the most urgent or widespread issues.
 
 Return ONLY the JSON, no additional text. Ensure executiveSummaryData values are STRINGS, not arrays.");
 
