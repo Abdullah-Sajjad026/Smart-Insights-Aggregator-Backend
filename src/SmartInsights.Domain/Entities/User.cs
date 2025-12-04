@@ -14,6 +14,23 @@ public class User : BaseEntity
     public Role Role { get; set; } = Role.Student;
     public UserStatus Status { get; set; } = UserStatus.Active;
 
+    // Email verification fields
+    public bool EmailVerified { get; set; } = false;
+    public string? EmailVerificationToken { get; set; }
+    public DateTime? EmailVerificationTokenExpiresAt { get; set; }
+
+    // Invitation fields
+    public string? InvitationToken { get; set; }
+    public DateTime? InvitationTokenExpiresAt { get; set; }
+    public DateTime? InvitationAcceptedAt { get; set; }
+    public bool IsInvitationPending => InvitationToken != null &&
+                                        InvitationTokenExpiresAt > DateTime.UtcNow &&
+                                        InvitationAcceptedAt == null;
+
+    // Password reset fields
+    public string? PasswordResetToken { get; set; }
+    public DateTime? PasswordResetTokenExpiresAt { get; set; }
+
     // Student-specific fields (nullable for admins)
     public Guid? DepartmentId { get; set; }
     public Guid? ProgramId { get; set; }

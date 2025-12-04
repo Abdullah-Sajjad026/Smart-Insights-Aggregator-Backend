@@ -1,4 +1,7 @@
+using System.Security.Cryptography;
+using Microsoft.Extensions.Configuration;
 using SmartInsights.Application.DTOs.Common;
+using SmartInsights.Application.DTOs.User;
 using SmartInsights.Application.DTOs.Users;
 using SmartInsights.Application.Interfaces;
 using SmartInsights.Domain.Entities;
@@ -13,19 +16,25 @@ public class UserService : IUserService
     private readonly IRepository<Program> _programRepository;
     private readonly IRepository<Semester> _semesterRepository;
     private readonly IPasswordService _passwordService;
+    private readonly IEmailService _emailService;
+    private readonly IConfiguration _configuration;
 
     public UserService(
         IRepository<User> userRepository,
         IRepository<Department> departmentRepository,
         IRepository<Program> programRepository,
         IRepository<Semester> semesterRepository,
-        IPasswordService passwordService)
+        IPasswordService passwordService,
+        IEmailService emailService,
+        IConfiguration configuration)
     {
         _userRepository = userRepository;
         _departmentRepository = departmentRepository;
         _programRepository = programRepository;
         _semesterRepository = semesterRepository;
         _passwordService = passwordService;
+        _emailService = emailService;
+        _configuration = configuration;
     }
 
     public async Task<UserDto?> GetByIdAsync(Guid id)
@@ -399,6 +408,295 @@ public class UserService : IUserService
         var users = await _userRepository.GetAllAsync();
         return users.GroupBy(u => u.Role.ToString())
             .ToDictionary(g => g.Key, g => g.Count());
+    }
+
+    public async Task<UserDto> InviteUserAsync(InviteUserRequest request)
+    {
+        // Check if email already exists
+        var existingUser = await _userRepository.FirstOrDefaultAsync(u => u.Email == request.Email);
+        if (existingUser != null)
+        {
+            throw new InvalidOperationException("User with this email already exists");
+        }
+
+        // Validate role
+        if (!Enum.TryParse<Role>(request.Role, out var role))
+        {
+            throw new ArgumentException("Invalid role");
+        }
+
+        // For students, validate required fields
+        if (role == Role.Student)
+        {
+            if (!request.DepartmentId.HasValue || !request.ProgramId.HasValue || !request.SemesterId.HasValue)
+            {
+                throw new ArgumentException("Department, Program, and Semester are required for students");
+            }
+
+            // Validate that department, program, and semester exist
+            var department = await _departmentRepository.GetByIdAsync(request.DepartmentId.Value);
+            if (department == null)
+                throw new ArgumentException("Department not found");
+
+            var program = await _programRepository.GetByIdAsync(request.ProgramId.Value);
+            if (program == null)
+                throw new ArgumentException("Program not found");
+
+            var semester = await _semesterRepository.GetByIdAsync(request.SemesterId.Value);
+            if (semester == null)
+                throw new ArgumentException("Semester not found");
+        }
+
+        // Generate invitation token (secure random token)
+        var invitationToken = GenerateSecureToken();
+        var invitationExpiresAt = DateTime.UtcNow.AddDays(7); // 7 days expiration
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = request.Email,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            PasswordHash = string.Empty, // No password yet - will be set when invitation is accepted
+            Role = role,
+            Status = UserStatus.Inactive, // Inactive until invitation is accepted
+            DepartmentId = request.DepartmentId,
+            ProgramId = request.ProgramId,
+            SemesterId = request.SemesterId,
+            InvitationToken = invitationToken,
+            InvitationTokenExpiresAt = invitationExpiresAt,
+            EmailVerified = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        await _userRepository.AddAsync(user);
+
+        // Send invitation email
+        var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "http://localhost:3000";
+        var invitationLink = $"{frontendUrl}/auth/accept-invitation?token={invitationToken}";
+
+        await _emailService.SendInvitationEmailAsync(user.Email, user.FirstName, invitationToken, invitationLink);
+
+        return MapToDto(user);
+    }
+
+    public async Task<BulkImportResultDto> ImportAndInviteFromCsvAsync(Stream csvStream)
+    {
+        var result = new BulkImportResultDto();
+        var validUsers = new List<User>();
+        var rowNumber = 0;
+
+        // Pre-fetch lookup data
+        var departments = await _departmentRepository.GetAllAsync();
+        var programs = await _programRepository.GetAllAsync();
+        var semesters = await _semesterRepository.GetAllAsync();
+
+        using var reader = new StreamReader(csvStream);
+
+        // Skip header
+        await reader.ReadLineAsync();
+        rowNumber++;
+
+        while (!reader.EndOfStream)
+        {
+            var line = await reader.ReadLineAsync();
+            rowNumber++;
+
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var values = line.Split(',');
+
+            // Basic column count check
+            if (values.Length < 3) // At least Email, FirstName, LastName
+            {
+                result.Results.Add(new ImportResultDetailDto
+                {
+                    RowNumber = rowNumber,
+                    Status = "Failure",
+                    ErrorMessage = "Invalid row format: insufficient columns"
+                });
+                result.FailureCount++;
+                continue;
+            }
+
+            var email = values[0].Trim();
+            var firstName = values[1].Trim();
+            var lastName = values[2].Trim();
+
+            // Role is always Student for bulk import
+            var role = Role.Student;
+
+            // Check if user already exists
+            var existingUser = await _userRepository.FirstOrDefaultAsync(u => u.Email == email);
+            if (existingUser != null)
+            {
+                result.Results.Add(new ImportResultDetailDto
+                {
+                    RowNumber = rowNumber,
+                    Email = email,
+                    Status = "Failure",
+                    ErrorMessage = "User with this email already exists"
+                });
+                result.FailureCount++;
+                continue;
+            }
+
+            Guid? departmentId = null, programId = null, semesterId = null;
+
+            // Department
+            if (values.Length > 3 && !string.IsNullOrWhiteSpace(values[3]))
+            {
+                var deptName = values[3].Trim();
+                var department = departments.FirstOrDefault(d => d.Name.Equals(deptName, StringComparison.OrdinalIgnoreCase));
+                if (department == null)
+                {
+                    result.Results.Add(new ImportResultDetailDto
+                    {
+                        RowNumber = rowNumber,
+                        Email = email,
+                        Status = "Failure",
+                        ErrorMessage = $"Department '{deptName}' not found"
+                    });
+                    result.FailureCount++;
+                    continue;
+                }
+                departmentId = department.Id;
+            }
+            else
+            {
+                result.Results.Add(new ImportResultDetailDto
+                {
+                    RowNumber = rowNumber,
+                    Email = email,
+                    Status = "Failure",
+                    ErrorMessage = "Department is required"
+                });
+                result.FailureCount++;
+                continue;
+            }
+
+            // Program
+            if (values.Length > 4 && !string.IsNullOrWhiteSpace(values[4]))
+            {
+                var progName = values[4].Trim();
+                var program = programs.FirstOrDefault(p => p.Name.Equals(progName, StringComparison.OrdinalIgnoreCase));
+                if (program == null)
+                {
+                    result.Results.Add(new ImportResultDetailDto
+                    {
+                        RowNumber = rowNumber,
+                        Email = email,
+                        Status = "Failure",
+                        ErrorMessage = $"Program '{progName}' not found"
+                    });
+                    result.FailureCount++;
+                    continue;
+                }
+                programId = program.Id;
+            }
+            else
+            {
+                result.Results.Add(new ImportResultDetailDto
+                {
+                    RowNumber = rowNumber,
+                    Email = email,
+                    Status = "Failure",
+                    ErrorMessage = "Program is required"
+                });
+                result.FailureCount++;
+                continue;
+            }
+
+            // Semester
+            if (values.Length > 5 && !string.IsNullOrWhiteSpace(values[5]))
+            {
+                var semValue = values[5].Trim();
+                var semester = semesters.FirstOrDefault(s => s.Value.Equals(semValue, StringComparison.OrdinalIgnoreCase));
+                if (semester == null)
+                {
+                    result.Results.Add(new ImportResultDetailDto
+                    {
+                        RowNumber = rowNumber,
+                        Email = email,
+                        Status = "Failure",
+                        ErrorMessage = $"Semester '{semValue}' not found"
+                    });
+                    result.FailureCount++;
+                    continue;
+                }
+                semesterId = semester.Id;
+            }
+            else
+            {
+                result.Results.Add(new ImportResultDetailDto
+                {
+                    RowNumber = rowNumber,
+                    Email = email,
+                    Status = "Failure",
+                    ErrorMessage = "Semester is required"
+                });
+                result.FailureCount++;
+                continue;
+            }
+
+            // Generate invitation token
+            var invitationToken = GenerateSecureToken();
+            var invitationExpiresAt = DateTime.UtcNow.AddDays(7);
+
+            var user = new User
+            {
+                Id = Guid.NewGuid(),
+                Email = email,
+                FirstName = firstName,
+                LastName = lastName,
+                PasswordHash = string.Empty, // No password - will be set via invitation
+                Role = role,
+                Status = UserStatus.Inactive, // Inactive until invitation is accepted
+                DepartmentId = departmentId,
+                ProgramId = programId,
+                SemesterId = semesterId,
+                InvitationToken = invitationToken,
+                InvitationTokenExpiresAt = invitationExpiresAt,
+                EmailVerified = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            validUsers.Add(user);
+            result.Results.Add(new ImportResultDetailDto
+            {
+                RowNumber = rowNumber,
+                Email = email,
+                Status = "Success"
+            });
+            result.SuccessCount++;
+        }
+
+        if (validUsers.Any())
+        {
+            await _userRepository.AddRangeAsync(validUsers);
+
+            // Send invitation emails
+            var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "http://localhost:3000";
+            foreach (var user in validUsers)
+            {
+                var invitationLink = $"{frontendUrl}/auth/accept-invitation?token={user.InvitationToken}";
+                await _emailService.SendInvitationEmailAsync(user.Email, user.FirstName, user.InvitationToken!, invitationLink);
+            }
+        }
+
+        return result;
+    }
+
+    private static string GenerateSecureToken()
+    {
+        var randomBytes = new byte[32];
+        using (var rng = RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(randomBytes);
+        }
+        return Convert.ToBase64String(randomBytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
     }
 
     private static UserDto MapToDto(User user)

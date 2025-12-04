@@ -1,4 +1,5 @@
 using SmartInsights.Application.DTOs.Common;
+using SmartInsights.Application.DTOs.User;
 using SmartInsights.Application.DTOs.Users;
 
 namespace SmartInsights.Application.Interfaces;
@@ -14,4 +15,6 @@ public interface IUserService
     Task<BulkImportResultDto> ImportFromCsvAsync(Stream csvStream);
     Task<int> GetTotalCountAsync();
     Task<Dictionary<string, int>> GetCountByRoleAsync();
+    Task<UserDto> InviteUserAsync(InviteUserRequest request);
+    Task<BulkImportResultDto> ImportAndInviteFromCsvAsync(Stream csvStream);
 }

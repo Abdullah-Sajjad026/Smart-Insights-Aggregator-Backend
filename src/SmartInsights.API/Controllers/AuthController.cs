@@ -64,4 +64,22 @@ public class AuthController : ControllerBase
             return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to retrieve user details"));
         }
     }
+
+    [HttpPost("accept-invitation")]
+    public async Task<IActionResult> AcceptInvitation([FromBody] AcceptInvitationRequest request)
+    {
+        try
+        {
+            var response = await _authService.AcceptInvitationAsync(request);
+            return Ok(ApiResponse<LoginResponse>.SuccessResponse(response, "Invitation accepted successfully. Welcome!"));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<LoginResponse>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<LoginResponse>.ErrorResponse("An error occurred while accepting invitation"));
+        }
+    }
 }

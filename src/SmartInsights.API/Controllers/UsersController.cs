@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartInsights.Application.DTOs.Common;
+using SmartInsights.Application.DTOs.User;
 using SmartInsights.Application.DTOs.Users;
 using SmartInsights.Application.Interfaces;
 
@@ -212,6 +213,66 @@ public class UsersController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to retrieve statistics"));
+        }
+    }
+
+    /// <summary>
+    /// Invite a new user via email
+    /// </summary>
+    [HttpPost("invite")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> InviteUser([FromBody] InviteUserRequest request)
+    {
+        try
+        {
+            var user = await _userService.InviteUserAsync(request);
+            return CreatedAtAction(nameof(GetById), new { id = user.Id },
+                ApiResponse<UserDto>.SuccessResponse(user, "User invitation sent successfully"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<UserDto>.ErrorResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<UserDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<UserDto>.ErrorResponse("Failed to invite user"));
+        }
+    }
+
+    /// <summary>
+    /// Import users from CSV file and send invitations
+    /// Format: Email, FirstName, LastName, Department, Program, Semester
+    /// </summary>
+    [HttpPost("import-csv-invite")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> ImportAndInviteFromCsv(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(ApiResponse<BulkImportResultDto>.ErrorResponse("No file uploaded"));
+        }
+
+        if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(ApiResponse<BulkImportResultDto>.ErrorResponse("File must be a CSV"));
+        }
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var result = await _userService.ImportAndInviteFromCsvAsync(stream);
+
+            return Ok(ApiResponse<BulkImportResultDto>.SuccessResponse(
+                result,
+                $"{result.SuccessCount} user invitations sent successfully. {result.FailureCount} failed."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<BulkImportResultDto>.ErrorResponse("Failed to import and invite users"));
         }
     }
 }

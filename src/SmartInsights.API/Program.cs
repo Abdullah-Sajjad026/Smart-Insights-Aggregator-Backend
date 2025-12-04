@@ -60,6 +60,23 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 
+// Register Email service based on configuration (Strategy Pattern)
+var emailProvider = builder.Configuration["Email:Provider"]?.ToLower() ?? "sendgrid";
+if (emailProvider == "sendgrid")
+{
+    builder.Services.AddScoped<IEmailService, SendGridEmailService>();
+    Log.Information("Using SendGrid as email provider");
+}
+else if (emailProvider == "smtp")
+{
+    builder.Services.AddScoped<IEmailService, EmailService>();
+    Log.Information("Using SMTP (MailKit) as email provider");
+}
+else
+{
+    throw new InvalidOperationException($"Unknown email provider: {emailProvider}. Supported providers: sendgrid, smtp");
+}
+
 // Register AI service based on configuration (Strategy Pattern)
 var aiProvider = builder.Configuration["AI:Provider"]?.ToLower() ?? "gemini";
 if (aiProvider == "azureopenai")
