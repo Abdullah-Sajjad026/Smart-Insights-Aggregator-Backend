@@ -151,6 +151,108 @@ public class TopicsController : ControllerBase
             return StatusCode(500, ApiResponse<object>.ErrorResponse("Failed to unarchive topic"));
         }
     }
+
+    /// <summary>
+    /// Update topic status with a message
+    /// </summary>
+    [HttpPut("{id}/status")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateTopicStatusRequest request)
+    {
+        try
+        {
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(ApiResponse<object>.ErrorResponse("User not authenticated"));
+
+            if (!Enum.TryParse<TopicStatus>(request.Status, out var status))
+                return BadRequest(ApiResponse<object>.ErrorResponse("Invalid status value"));
+
+            var update = await _topicService.UpdateStatusAsync(id, status, request.Message, Guid.Parse(userId));
+            return Ok(ApiResponse<TopicUpdateDto>.SuccessResponse(update, "Topic status updated successfully"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse($"Failed to update topic status: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Post an update/progress message to a topic without changing status
+    /// </summary>
+    [HttpPost("{id}/updates")]
+    [Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> PostUpdate(Guid id, [FromBody] PostTopicUpdateRequest request)
+    {
+        try
+        {
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(ApiResponse<object>.ErrorResponse("User not authenticated"));
+
+            var update = await _topicService.PostUpdateAsync(id, request.Message, Guid.Parse(userId));
+            return Ok(ApiResponse<TopicUpdateDto>.SuccessResponse(update, "Update posted successfully"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse($"Failed to post update: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Get topics that the current user has contributed to (for students)
+    /// </summary>
+    [HttpGet("my-contributions")]
+    public async Task<IActionResult> GetMyContributions([FromServices] IRepository<Input> inputRepository)
+    {
+        try
+        {
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(ApiResponse<object>.ErrorResponse("User not authenticated"));
+
+            // Get all inputs by this user that have a topic assigned
+            var userInputs = await inputRepository.FindAsync(i => i.UserId == Guid.Parse(userId) && i.TopicId != null);
+            var topicIds = userInputs.Select(i => i.TopicId!.Value).Distinct().ToList();
+
+            // Get full topic details for each topic
+            var topics = new List<TopicDto>();
+            foreach (var topicId in topicIds)
+            {
+                var topic = await _topicService.GetByIdAsync(topicId);
+                if (topic != null && !topic.IsArchived)
+                {
+                    topics.Add(topic);
+                }
+            }
+
+            return Ok(ApiResponse<List<TopicDto>>.SuccessResponse(topics.OrderByDescending(t => t.StatusUpdatedAt ?? t.CreatedAt).ToList()));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<object>.ErrorResponse($"Failed to retrieve contributions: {ex.Message}"));
+        }
+    }
+}
+
+// Topic request DTOs
+public class UpdateTopicStatusRequest
+{
+    public string Status { get; set; } = string.Empty; // "Submitted", "UnderReview", "InProgress", "Completed", "Planned", "Rejected"
+    public string Message { get; set; } = string.Empty;
+}
+
+public class PostTopicUpdateRequest
+{
+    public string Message { get; set; } = string.Empty;
 }
 
 // Departments Controller (enhanced)

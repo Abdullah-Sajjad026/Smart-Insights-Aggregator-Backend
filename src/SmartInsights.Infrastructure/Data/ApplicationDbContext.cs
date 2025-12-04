@@ -26,6 +26,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<InquirySemester> InquirySemesters => Set<InquirySemester>();
     public DbSet<InquiryFaculty> InquiryFaculties => Set<InquiryFaculty>();
     public DbSet<AIUsageLog> AIUsageLogs => Set<AIUsageLog>();
+    public DbSet<TopicUpdate> TopicUpdates => Set<TopicUpdate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

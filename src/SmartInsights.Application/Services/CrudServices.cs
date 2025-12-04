@@ -16,6 +16,8 @@ public interface ITopicService
     Task<List<TopicDto>> GetByDepartmentAsync(Guid departmentId, bool includeArchived = false);
     Task ArchiveAsync(Guid id);
     Task UnarchiveAsync(Guid id);
+    Task<TopicUpdateDto> UpdateStatusAsync(Guid topicId, TopicStatus newStatus, string message, Guid adminId);
+    Task<TopicUpdateDto> PostUpdateAsync(Guid topicId, string message, Guid adminId);
 }
 
 public class TopicDto
@@ -24,9 +26,21 @@ public class TopicDto
     public string Name { get; set; } = string.Empty;
     public string? Department { get; set; }
     public bool IsArchived { get; set; }
+    public string Status { get; set; } = "Submitted";
+    public DateTime? StatusUpdatedAt { get; set; }
     public int InputCount { get; set; }
     public ExecutiveSummaryDto? AiSummary { get; set; }
     public List<InputDto> Inputs { get; set; } = new();
+    public List<TopicUpdateDto> Updates { get; set; } = new();
+    public DateTime CreatedAt { get; set; }
+}
+
+public class TopicUpdateDto
+{
+    public Guid Id { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string? NewStatus { get; set; }
+    public string AdminName { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
 }
 
@@ -34,11 +48,13 @@ public class TopicService : ITopicService
 {
     private readonly IRepository<Topic> _topicRepository;
     private readonly IRepository<Input> _inputRepository;
+    private readonly IRepository<TopicUpdate> _topicUpdateRepository;
 
-    public TopicService(IRepository<Topic> topicRepository, IRepository<Input> inputRepository)
+    public TopicService(IRepository<Topic> topicRepository, IRepository<Input> inputRepository, IRepository<TopicUpdate> topicUpdateRepository)
     {
         _topicRepository = topicRepository;
         _inputRepository = inputRepository;
+        _topicUpdateRepository = topicUpdateRepository;
     }
 
     public async Task<TopicDto?> GetByIdAsync(Guid id)
@@ -84,15 +100,29 @@ public class TopicService : ITopicService
             catch { }
         }
 
+        // Get topic updates
+        var updates = await _topicUpdateRepository.FindAsync(u => u.TopicId == id, u => u.CreatedBy);
+        var updateDtos = updates.OrderByDescending(u => u.CreatedAt).Select(u => new TopicUpdateDto
+        {
+            Id = u.Id,
+            Message = u.Message,
+            NewStatus = u.NewStatus?.ToString(),
+            AdminName = $"{u.CreatedBy.FirstName} {u.CreatedBy.LastName}".Trim(),
+            CreatedAt = u.CreatedAt
+        }).ToList();
+
         return new TopicDto
         {
             Id = topic.Id,
             Name = topic.Name,
             Department = topic.Department?.Name,
             IsArchived = topic.IsArchived,
+            Status = topic.Status.ToString(),
+            StatusUpdatedAt = topic.StatusUpdatedAt,
             InputCount = inputCount,
             AiSummary = summaryDto,
             Inputs = inputs.OrderByDescending(i => i.CreatedAt).Select(MapInputToDto).ToList(),
+            Updates = updateDtos,
             CreatedAt = topic.CreatedAt
         };
     }
@@ -210,6 +240,71 @@ public class TopicService : ITopicService
         topic.IsArchived = false;
         topic.UpdatedAt = DateTime.UtcNow;
         await _topicRepository.UpdateAsync(topic);
+    }
+
+    public async Task<TopicUpdateDto> UpdateStatusAsync(Guid topicId, TopicStatus newStatus, string message, Guid adminId)
+    {
+        var topic = await _topicRepository.GetByIdAsync(topicId);
+        if (topic == null) throw new KeyNotFoundException("Topic not found");
+
+        topic.UpdateStatus(newStatus);
+        await _topicRepository.UpdateAsync(topic);
+
+        var update = new TopicUpdate
+        {
+            Id = Guid.NewGuid(),
+            TopicId = topicId,
+            Message = message,
+            NewStatus = newStatus,
+            CreatedById = adminId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _topicUpdateRepository.AddAsync(update);
+
+        // Fetch admin details for DTO
+        var admin = await _topicUpdateRepository.FindAsync(u => u.Id == update.Id, u => u.CreatedBy);
+        var adminUser = admin.FirstOrDefault()?.CreatedBy;
+
+        return new TopicUpdateDto
+        {
+            Id = update.Id,
+            Message = update.Message,
+            NewStatus = update.NewStatus?.ToString(),
+            AdminName = adminUser != null ? $"{adminUser.FirstName} {adminUser.LastName}".Trim() : "Admin",
+            CreatedAt = update.CreatedAt
+        };
+    }
+
+    public async Task<TopicUpdateDto> PostUpdateAsync(Guid topicId, string message, Guid adminId)
+    {
+        var topic = await _topicRepository.GetByIdAsync(topicId);
+        if (topic == null) throw new KeyNotFoundException("Topic not found");
+
+        var update = new TopicUpdate
+        {
+            Id = Guid.NewGuid(),
+            TopicId = topicId,
+            Message = message,
+            NewStatus = null, // Just an update, no status change
+            CreatedById = adminId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _topicUpdateRepository.AddAsync(update);
+
+        // Fetch admin details for DTO
+        var admin = await _topicUpdateRepository.FindAsync(u => u.Id == update.Id, u => u.CreatedBy);
+        var adminUser = admin.FirstOrDefault()?.CreatedBy;
+
+        return new TopicUpdateDto
+        {
+            Id = update.Id,
+            Message = update.Message,
+            NewStatus = null,
+            AdminName = adminUser != null ? $"{adminUser.FirstName} {adminUser.LastName}".Trim() : "Admin",
+            CreatedAt = update.CreatedAt
+        };
     }
 }
 
